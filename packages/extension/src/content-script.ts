@@ -13,8 +13,10 @@ export interface RuntimeMessenger {
 
 export class SerenityContentScript {
   private processed = new WeakSet<Element>()
-  private observer: MutationObserver | null = null
+  private observers: MutationObserver[] = []
+  private observedDocuments = new WeakSet<Document>()
   private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private scanQueued = false
 
   constructor(
     private readonly document: Document,
@@ -27,14 +29,16 @@ export class SerenityContentScript {
   start(): void {
     this.injectDefaultHideStyles()
     void this.scan()
-    this.observeContainer()
+    this.observeAvailableDocuments()
   }
 
   stop(): void {
-    this.observer?.disconnect()
-    this.observer = null
+    for (const observer of this.observers) observer.disconnect()
+    this.observers = []
+    this.observedDocuments = new WeakSet<Document>()
     if (this.retryTimer !== null) clearTimeout(this.retryTimer)
     this.retryTimer = null
+    this.scanQueued = false
   }
 
   async scan(): Promise<void> {
@@ -50,10 +54,12 @@ export class SerenityContentScript {
         messages: extracted.map(({ hash, text }) => ({ hash, text })),
       })
     } catch {
+      for (const { row } of extracted) this.processed.delete(row)
       this.scheduleRetry()
       return
     }
     if (response.type !== 'serenity.classifyMessagesResult') {
+      for (const { row } of extracted) this.processed.delete(row)
       this.scheduleRetry()
       return
     }
@@ -64,10 +70,10 @@ export class SerenityContentScript {
       const verdict = verdictsByHash.get(hash)
       if (verdict === undefined || verdict.status === 'unclassified') {
         sawUnclassified = true
+        this.processed.delete(row)
         continue
       }
       applyVerdict(row, verdict.hide)
-      this.processed.add(row)
     }
     if (sawUnclassified) this.scheduleRetry()
   }
@@ -84,10 +90,10 @@ export class SerenityContentScript {
     const messages: ExtractedRow[] = []
     for (const row of rows) {
       if (this.processed.has(row)) continue
+      this.processed.add(row)
       const text = extractText(row)
       if (text === null) {
         applyVerdict(row, false)
-        this.processed.add(row)
         continue
       }
       messages.push({ row, hash: await hashMessageText(text), text })
@@ -95,38 +101,29 @@ export class SerenityContentScript {
     return messages
   }
 
-  private observeContainer(): void {
-    const container = this.targetDocuments()
-      .map((document) => document.querySelector(this.definition.containerSelector))
-      .find((element): element is Element => element !== null)
-    if (container === undefined) {
-      this.observeDocumentUntilContainerExists()
-      return
+  private observeAvailableDocuments(): void {
+    for (const targetDocument of this.observableDocuments()) {
+      if (this.observedDocuments.has(targetDocument)) continue
+      const root = targetDocument.documentElement
+      if (root === null) continue
+      const observer = new this.observerCtor(() => {
+        this.injectDefaultHideStyles()
+        this.observeAvailableDocuments()
+        this.queueScan()
+      })
+      observer.observe(root, { childList: true, subtree: true })
+      this.observers.push(observer)
+      this.observedDocuments.add(targetDocument)
     }
-
-    this.observer?.disconnect()
-    this.observer = new this.observerCtor(() => {
-      void this.scan()
-    })
-    this.observer.observe(container, { childList: true, subtree: true })
   }
 
-  private observeDocumentUntilContainerExists(): void {
-    const root = this.document.documentElement
-    if (root === null) return
-
-    this.observer?.disconnect()
-    this.observer = new this.observerCtor(() => {
+  private queueScan(): void {
+    if (this.scanQueued) return
+    this.scanQueued = true
+    setTimeout(() => {
+      this.scanQueued = false
       void this.scan()
-      if (
-        this.targetDocuments().some(
-          (document) => document.querySelector(this.definition.containerSelector) !== null,
-        )
-      ) {
-        this.observeContainer()
-      }
-    })
-    this.observer.observe(root, { childList: true, subtree: true })
+    }, 0)
   }
 
   private scheduleRetry(): void {
@@ -142,6 +139,10 @@ export class SerenityContentScript {
     return Array.from(this.document.querySelectorAll(this.definition.frameSelector))
       .map((frame) => frameDocument(frame))
       .filter((document): document is Document => document !== null)
+  }
+
+  private observableDocuments(): Document[] {
+    return [this.document, ...this.targetDocuments()]
   }
 
   private injectDefaultHideStyles(): void {
@@ -220,6 +221,12 @@ export function defaultHideCss(definition: ServiceSelectorDefinition): string {
   return `${selectors} { display: none !important; }`
 }
 
+export function shouldRefilterForStorageChanges(
+  changes: Record<string, chrome.storage.StorageChange>,
+): boolean {
+  return changes.defaultPreset !== undefined || changes.servicePresetOverrides !== undefined
+}
+
 function injectDefaultHideStyles(
   document: Document,
   definition: ServiceSelectorDefinition,
@@ -272,7 +279,8 @@ if (typeof chrome !== 'undefined' && typeof document !== 'undefined') {
     },
   }
   const scripts = installSerenityContentScripts(document, runtime)
-  chrome.storage.onChanged.addListener(() => {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local' || !shouldRefilterForStorageChanges(changes)) return
     for (const script of scripts) void script.refilter()
   })
 }

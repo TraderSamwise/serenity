@@ -10,6 +10,7 @@ import {
   collectRows,
   defaultHideCss,
   installSerenityContentScripts,
+  shouldRefilterForStorageChanges,
 } from '../src/content-script'
 import { hashMessageText } from '../src/hash'
 import {
@@ -136,6 +137,33 @@ describe('content script DOM suppression', () => {
     script.stop()
   })
 
+  it('does not classify the same row twice while the first verdict is in flight', async () => {
+    const dom = xStatusDom()
+    const hash = await hashMessageText('Constructive but blunt reply')
+    let resolveResponse: (response: ClassifyMessagesResponse) => void = () => {}
+    const pending = new Promise<ClassifyMessagesResponse>((resolve) => {
+      resolveResponse = resolve
+    })
+    const runtime = recordingRuntime(async () => pending)
+    const script = new SerenityContentScript(
+      dom.window.document,
+      X_OWN_POST_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    const firstScan = script.scan()
+    await waitFor(() => runtime.calls.length === 1)
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    resolveResponse({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: [{ hash, hide: false, status: 'classified' }],
+    })
+    await firstScan
+  })
+
   it('leaves rows removed while classification is in flight untouched and has no pruning state', async () => {
     const dom = twitchChatDom()
     let resolveResponse: (response: ClassifyMessagesResponse) => void = () => {}
@@ -167,6 +195,58 @@ describe('content script DOM suppression', () => {
     await scan
 
     expect(scroller.querySelectorAll('[data-a-target="chat-line-message"]')).toHaveLength(0)
+  })
+
+  it('keeps classifying rows after a streaming container is replaced', async () => {
+    const dom = twitchChatDom()
+    const runtime = recordingRuntime(async (message) => ({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: (message as ClassifyMessagesRequest).messages.map((item) => ({
+        hash: item.hash,
+        hide: false,
+        status: 'classified',
+      })),
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      TWITCH_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const firstScroller = dom.window.document.querySelector('[data-a-target="chat-scroller"]')!
+    script.start()
+    await waitFor(() => runtime.calls.length === 1)
+
+    const nextScroller = dom.window.document.createElement('div')
+    nextScroller.dataset.aTarget = 'chat-scroller'
+    const nextRow = dom.window.document.createElement('div')
+    nextRow.dataset.aTarget = 'chat-line-message'
+    nextRow.textContent = 'Replacement chat line'
+    nextScroller.append(nextRow)
+    firstScroller.replaceWith(nextScroller)
+
+    await waitFor(() => runtime.calls.length === 2)
+
+    expect(nextRow.dataset.serenityHidden).toBe('shown')
+    script.stop()
+  })
+
+  it('refilters only when policy settings change, not hidden-count bookkeeping', () => {
+    expect(
+      shouldRefilterForStorageChanges({
+        hiddenCounts: { oldValue: { byVerdict: 0 }, newValue: { byVerdict: 1 } },
+      }),
+    ).toBe(false)
+    expect(
+      shouldRefilterForStorageChanges({
+        defaultPreset: { oldValue: 'aggressive', newValue: 'balanced' },
+      }),
+    ).toBe(true)
+    expect(
+      shouldRefilterForStorageChanges({
+        servicePresetOverrides: { oldValue: {}, newValue: { youtube_comments: 'off' } },
+      }),
+    ).toBe(true)
   })
 })
 
