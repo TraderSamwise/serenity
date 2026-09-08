@@ -33,6 +33,11 @@ export type ClassifyFn = (
   fields: readonly ClassifierOutputField[],
 ) => Promise<PartialClassifierOutput>
 
+export interface CorpusClassificationPlan {
+  requests: Array<{ message: CorpusMessage; fields: ClassifierOutputField[] }>
+  skipped: number
+}
+
 export function emptyClassificationCache(model = CLASSIFIER_MODEL): ClassificationCache {
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -94,25 +99,38 @@ export async function classifyMissingCorpusEntries(
   classify: ClassifyFn,
 ): Promise<{ classified: number; skipped: number }> {
   let classified = 0
-  let skipped = 0
+  const plan = planMissingCorpusEntries(corpus, cache)
 
-  seedLegacyFields(corpus, cache)
-
-  for (const message of corpus) {
-    const missingFields = missingFieldsForText(message.text, cache)
-    if (missingFields.length === 0) {
-      assembleCurrentEntry(message.text, cache)
-      skipped += 1
-      continue
-    }
-
-    writeFields(message.text, await classify(message, missingFields), cache)
+  for (const { message, fields } of plan.requests) {
+    writeFields(message.text, await classify(message, fields), cache)
     assembleCurrentEntry(message.text, cache)
     classified += 1
     await saveClassificationCache(cachePath, cache)
   }
 
-  return { classified, skipped }
+  return { classified, skipped: plan.skipped }
+}
+
+export function planMissingCorpusEntries(
+  corpus: readonly CorpusMessage[],
+  cache: ClassificationCache,
+): CorpusClassificationPlan {
+  let skipped = 0
+  const requests: CorpusClassificationPlan['requests'] = []
+
+  seedLegacyFields(corpus, cache)
+
+  for (const message of corpus) {
+    const fields = missingFieldsForText(message.text, cache)
+    if (fields.length === 0) {
+      assembleCurrentEntry(message.text, cache)
+      skipped += 1
+    } else {
+      requests.push({ message, fields })
+    }
+  }
+
+  return { requests, skipped }
 }
 
 function seedLegacyFields(corpus: readonly CorpusMessage[], cache: ClassificationCache): void {
