@@ -54,18 +54,56 @@ hide actions sit behind a separate default-off capability layer.
 ```
 content script  ──extract──▶  background worker  ──batch──▶  proxy  ──▶  OpenAI
       ▲                              │                         │
-      └────── hide/show ─────────────┘                    global cache
+      └─── reveal / remove ──────────┘                    global cache
                                  local cache              (hash → vector)
                               (IndexedDB, per-profile)
 ```
 
-- **Content script** per platform: MutationObserver over the message/comment
-  list, extracts `{stableId, text}`, applies `display:none` on verdict. Hides
-  optimistically until classified, so nothing flashes into view.
+Everything happens in the DOM. There is no network interception, and that is a
+deliberate decision rather than an omission — see "Why the DOM, and only the
+DOM" below.
+
+- **Injected CSS**, at `document_start`, default-hides every row selector for the
+  services matching the page. A message is therefore never visible before it has
+  been judged, even if our JavaScript is slow, throws, or never runs at all.
+  This is the fail-closed default and it is the whole flash story.
+- **Content script** per service: a MutationObserver over the message list reads
+  each new row's text and holds a reference to the node. Coarse text is fine —
+  the row's `textContent`, even with some surrounding markup noise, classifies
+  correctly, so no precise text selector is needed.
 - **Background worker**: batches, dedupes, owns the local cache, applies the
   ruleset. The ruleset runs *client-side* — the server never knows a user's
   settings.
 - **Proxy**: key custody, global cache, quota, hard spend ceiling.
+
+A clean verdict reveals the row. A failing verdict removes it. A row that is
+never judged stays hidden, because that is the cheap error.
+
+### Why the DOM, and only the DOM
+
+Network interception was designed in detail and then rejected, so the reasoning
+is recorded here to stop it being rediscovered.
+
+Ad blockers block at the network layer because **the request itself is the
+harm**: it fires a tracker, leaks an identity, costs bandwidth. They then use
+cosmetic DOM filtering as a *separate* layer to hide the empty container the
+block leaves behind. Two layers, two different jobs.
+
+Neither applies here. The message is already on the creator's device, sent to
+them by a platform they chose to use, and nobody is tracked by its arrival. The
+only harm is the creator's eyes landing on the text, which happens at the
+rendering layer and nowhere else.
+
+Worse, interception would have *created* the problem it was supposed to avoid.
+Every modern app renders a placeholder or skeleton while a request is in flight,
+so deleting a message from a payload leaves an orphaned placeholder spinning
+forever — the empty ad-box, exactly.
+
+And because a positive verdict always requires a DOM change, we are in the DOM
+regardless. Once we hold the node, reading its text costs nothing. Interception
+would have added a MAIN-world script, a message bridge, three protocol wrappers,
+per-venue JSON paths, response reconstruction and abort handling, to obtain text
+we already have.
 
 ## Classification schema
 

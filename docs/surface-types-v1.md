@@ -4,7 +4,13 @@ A venue is not a problem. A venue is a set of surfaces, and every surface is one
 of four types. Adding a venue should mean answering "which type is each of its
 surfaces" and writing selectors — never writing a new suppression system.
 
-All four types are the same mechanism with two things varied:
+Every type shares one default: CSS injected at `document_start` hides the unit
+before anything can paint it. Nothing is ever rendered and then taken away, so
+there is no flash to race, and a row whose verdict never arrives stays hidden
+because that is the cheap error.
+
+On top of that default, all four types are the same mechanism with two things
+varied:
 
     suppress(unit) -> classify -> release(policy)
 
@@ -70,12 +76,9 @@ themselves. The receipt fires either way. Serenity is not making the creator's
 position worse, it is only reaching the same conclusion faster and without them
 reading it.
 
-A better system exists and is deliberately deferred: a MAIN-world content script
-can patch fetch and XHR before the page's own code runs, classify messages
-before the app renders them, and drop the mark-as-read request outright. That
-removes the receipt entirely and subsumes the Type B buffer. It is also coupled
-to API shape rather than DOM shape, can desync the app's unread counts, and is a
-larger change than the curtain. Build the simple thing first.
+Network interception was considered as a way to remove the receipt and was
+rejected for unrelated reasons; see "Why the DOM, and only the DOM" in
+docs/plan-v1.md. The receipt stands.
 
 ## Type D — Summary list
 
