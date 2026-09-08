@@ -358,3 +358,36 @@ resets per session or accumulates, whether changing a preset should visibly
 re-filter in front of the user (it is instant and free, and it is the most
 convincing thing the product does), and whether there is any state worth showing
 when nothing has been hidden at all.
+
+## Deploying
+
+The proxy runs as a Cloudflare Worker at
+`https://serenity-proxy.m3edge.workers.dev`, on Sam's personal Cloudflare
+account. Storage is Upstash Redis (`serenity-cache-prod`, us-east-1, $20/month
+budget cap — past the cap the database stops rather than billing on, so an
+unreachable cache is worth checking against that before assuming a bug).
+
+Deploys are manual for now:
+
+```bash
+git status --porcelain              # must be empty
+git rev-list --left-right --count origin/master...master   # must be 0 0
+yarn workspace @serenity/proxy wrangler deploy
+```
+
+The two checks are the point. A CLI deploy ships the working tree, so without
+them production ends up running code that is on no branch and cannot be
+identified later. With them, what is deployed is exactly what is on master.
+
+CI/CD off a `release` branch is the intended end state, and is deliberately not
+set up yet — the proxy changes rarely enough that the ceremony is not yet worth
+it.
+
+**The one thing that forces a redeploy is a rubric change.** The Worker bundles
+the classifier for tier 2, so the prompt and axis definitions ship inside it.
+Everything else that changes often — selectors, a new venue, thresholds,
+presets — is extension-only and never touches the Worker.
+
+Secrets live only in Cloudflare, set with `wrangler secret put`:
+`SERENITY_OPENAI_API_KEY`, `SERENITY_PROXY_TOKEN_SECRET`,
+`SERENITY_UPSTASH_REDIS_REST_URL`, `SERENITY_UPSTASH_REDIS_REST_TOKEN`.
