@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Serenity",
+  "version": "0.1.0",
+  "description": "Suppress abusive inbound creator messages before they are read.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://www.youtube.com/*",
+    "https://www.instagram.com/*",
+    "https://www.twitch.tv/*",
+    "https://onlyfans.com/*",
+    "https://fansly.com/*"
+  ],
+  "background": {
+    "service_worker": "dist/background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

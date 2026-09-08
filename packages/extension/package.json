@@ -1,0 +1,23 @@
+{
+  "name": "@serenity/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@serenity/core": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "@types/node": "^24.3.0",
+    "fake-indexeddb": "^6.2.4",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

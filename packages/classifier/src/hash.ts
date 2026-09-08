@@ -1,9 +1,8 @@
 import { createHash } from 'node:crypto'
+import { normaliseMessageText } from '@serenity/core'
 import { CLASSIFIER_RUBRIC_VERSION } from './prompt'
 
-export function normaliseMessageText(text: string): string {
-  return text.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()
-}
+export { normaliseMessageText } from '@serenity/core'
 
 export function sha256Hex(value: string): string {
   return createHash('sha256').update(value).digest('hex')
