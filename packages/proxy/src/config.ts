@@ -7,6 +7,8 @@ import type { ProxyApp } from './http'
 import { createUpstashGlobalHashCache } from './upstash-cache'
 import { createUpstashQuotaStore } from './upstash-quota'
 
+export type ProxyEnv = Record<string, string | undefined>
+
 export interface ProxyConfig {
   apiKey: string
   tokenSecret: string
@@ -16,11 +18,9 @@ export interface ProxyConfig {
   globalTier2Ceiling: number
   globalTokenCeiling: number
   tier2Enabled: boolean
-  statsPath?: string
-  port: number
 }
 
-export function loadProxyConfig(env = process.env): ProxyConfig {
+export function loadProxyConfig(env: ProxyEnv): ProxyConfig {
   const missing = missingRequiredEnv(env, [
     'SERENITY_OPENAI_API_KEY',
     'SERENITY_PROXY_TOKEN_SECRET',
@@ -29,7 +29,7 @@ export function loadProxyConfig(env = process.env): ProxyConfig {
   ])
   if (missing.length > 0) {
     throw new Error(
-      `Missing proxy environment variables in packages/proxy/.env.local: ${missing.join(', ')}.`,
+      `Missing proxy environment variables or Worker secrets: ${missing.join(', ')}. Set them with wrangler secret put for Workers or packages/proxy/.env.local for local tools.`,
     )
   }
 
@@ -42,9 +42,7 @@ export function loadProxyConfig(env = process.env): ProxyConfig {
     globalTier2Ceiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TIER2_CEILING, 100000),
     globalTokenCeiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TOKEN_CEILING, 50000000),
     tier2Enabled: env.SERENITY_PROXY_TIER2_ENABLED !== '0',
-    port: numberEnv(env.PORT, 8787),
   }
-  if (env.SERENITY_PROXY_STATS_PATH !== undefined) config.statsPath = env.SERENITY_PROXY_STATS_PATH
   return config
 }
 
@@ -70,13 +68,11 @@ export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
       tier2: openAIClassifier(config.apiKey),
     },
   }
-  return createProxyApp(
-    config.statsPath === undefined ? options : { ...options, statsPath: config.statsPath },
-  )
+  return createProxyApp(options)
 }
 
 function missingRequiredEnv(
-  env: NodeJS.ProcessEnv,
+  env: ProxyEnv,
   names: readonly string[],
 ): string[] {
   return names.filter((name) => env[name] === undefined || env[name] === '')

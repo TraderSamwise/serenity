@@ -1,8 +1,5 @@
 import { classifyBatch } from './classify'
-import { appendFile, mkdir } from 'node:fs/promises'
-import { dirname } from 'node:path'
 import type { ClassifyDependencies } from './classify'
-import type { ClassifyBatchStats } from './classify'
 import { verifyInstallToken } from './token'
 
 export interface ProxyApp {
@@ -12,7 +9,6 @@ export interface ProxyApp {
 export interface ProxyAppOptions {
   tokenSecret: string
   deps: ClassifyDependencies
-  statsPath?: string
 }
 
 type ClassifyRequestBody = {
@@ -35,7 +31,7 @@ export function createProxyApp(options: ProxyAppOptions): ProxyApp {
 
       try {
         const result = await classifyBatch(body.messages, installId, options.deps)
-        await logClassifyStats(result.stats, options.statsPath)
+        console.log(`serenity proxy classify stats ${JSON.stringify(result.stats)}`)
         return json({ results: result.results }, 200)
       } catch {
         return json({ error: 'Classification failed.' }, 502)
@@ -80,32 +76,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function json(body: unknown, status: number): Response {
+export function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: corsHeaders({ 'content-type': 'application/json' }),
   })
 }
 
-async function logClassifyStats(
-  stats: ClassifyBatchStats,
-  statsPath: string | undefined,
-): Promise<void> {
-  console.log(`serenity proxy classify stats ${JSON.stringify(stats)}`)
-  if (statsPath === undefined) return
-
-  await mkdir(dirname(statsPath), { recursive: true })
-  await appendFile(statsPath, `${JSON.stringify(stats)}\n`, 'utf8')
-}
-
-function empty(status: number): Response {
+export function empty(status: number): Response {
   return new Response(null, {
     status,
     headers: corsHeaders(),
   })
 }
 
-function corsHeaders(headers: Record<string, string> = {}): HeadersInit {
+export function corsHeaders(headers: Record<string, string> = {}): HeadersInit {
   return {
     ...headers,
     'access-control-allow-origin': '*',

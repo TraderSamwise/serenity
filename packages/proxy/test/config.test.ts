@@ -9,7 +9,7 @@ describe('proxy config', () => {
         SERENITY_PROXY_TOKEN_SECRET: 'token-secret',
       }),
     ).toThrow(
-      'Missing proxy environment variables in packages/proxy/.env.local: SERENITY_UPSTASH_REDIS_REST_URL, SERENITY_UPSTASH_REDIS_REST_TOKEN.',
+      'Missing proxy environment variables or Worker secrets: SERENITY_UPSTASH_REDIS_REST_URL, SERENITY_UPSTASH_REDIS_REST_TOKEN. Set them with wrangler secret put for Workers or packages/proxy/.env.local for local tools.',
     )
   })
 
@@ -23,8 +23,6 @@ describe('proxy config', () => {
         SERENITY_PROXY_PER_INSTALL_TIER2_QUOTA: '25',
         SERENITY_PROXY_GLOBAL_TIER2_CEILING: '100',
         SERENITY_PROXY_GLOBAL_TOKEN_CEILING: '5000',
-        SERENITY_PROXY_STATS_PATH: '/tmp/stats.jsonl',
-        PORT: '9999',
       }),
     ).toMatchObject({
       apiKey: 'openai-key',
@@ -34,8 +32,6 @@ describe('proxy config', () => {
       perInstallTier2Quota: 25,
       globalTier2Ceiling: 100,
       globalTokenCeiling: 5000,
-      statsPath: '/tmp/stats.jsonl',
-      port: 9999,
     })
   })
 })

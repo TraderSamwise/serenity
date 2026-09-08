@@ -1,6 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
-import { sha256Hex } from '@serenity/classifier'
+import { sha256Hex } from '@serenity/classifier/runtime'
 
 export interface UsageSnapshot {
   installs: Record<string, number>
@@ -48,54 +46,11 @@ export class MemoryQuotaStore implements QuotaStore {
   }
 }
 
-export class FileQuotaStore implements QuotaStore {
-  private usage: UsageSnapshot | null = null
-
-  constructor(
-    private readonly path: string,
-    private readonly options: QuotaOptions,
-  ) {}
-
-  async reserveTier2(installId: string, estimatedTokens: number): Promise<boolean> {
-    const usage = await this.load()
-    if (!canUseTier2(usage, installId, estimatedTokens, this.options)) return false
-    reserveTier2(usage, installId, estimatedTokens)
-    await this.save(usage)
-    return true
-  }
-
-  async recordTier2(_installId: string, tokens: number, reservedTokens: number): Promise<void> {
-    const usage = await this.load()
-    recordTier2(usage, tokens, reservedTokens)
-    await this.save(usage)
-  }
-
-  private async load(): Promise<UsageSnapshot> {
-    if (this.usage !== null) return this.usage
-
-    try {
-      this.usage = JSON.parse(await readFile(this.path, 'utf8')) as UsageSnapshot
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      this.usage = emptyUsageSnapshot()
-    }
-
-    return this.usage
-  }
-
-  private async save(usage: UsageSnapshot): Promise<void> {
-    await mkdir(dirname(this.path), { recursive: true })
-    const tempPath = `${this.path}.tmp`
-    await writeFile(tempPath, `${JSON.stringify(usage, null, 2)}\n`, 'utf8')
-    await rename(tempPath, this.path)
-  }
-}
-
 function installUsageKey(installId: string): string {
   return sha256Hex(installId)
 }
 
-function canUseTier2(
+export function canUseTier2(
   usage: UsageSnapshot,
   installId: string,
   estimatedTokens: number,
@@ -110,7 +65,7 @@ function canUseTier2(
   return (usage.installs[installKey] ?? 0) < options.perInstallTier2Quota
 }
 
-function reserveTier2(
+export function reserveTier2(
   usage: UsageSnapshot,
   installId: string,
   estimatedTokens: number,
@@ -121,6 +76,6 @@ function reserveTier2(
   usage.globalTokens += estimatedTokens
 }
 
-function recordTier2(usage: UsageSnapshot, tokens: number, reservedTokens: number): void {
+export function recordTier2(usage: UsageSnapshot, tokens: number, reservedTokens: number): void {
   usage.globalTokens = Math.max(0, usage.globalTokens + tokens - reservedTokens)
 }

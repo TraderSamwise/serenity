@@ -7,8 +7,8 @@ import {
   METRIC_RUBRIC_FIELDS,
   classifyWithOpenAIResult,
   estimateRunCost,
-} from '@serenity/classifier'
-import type { OpenAIUsage } from '@serenity/classifier'
+} from '@serenity/classifier/runtime'
+import type { OpenAIUsage } from '@serenity/classifier/runtime'
 import { SCORED_AXES } from '@serenity/core'
 import { textHash } from './hash-cache'
 import type { GlobalHashCache } from './hash-cache'

@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis'
-import { CLASSIFIER_RUBRIC_VERSION } from '@serenity/classifier'
+import { CLASSIFIER_RUBRIC_VERSION } from '@serenity/classifier/runtime'
 import { SCHEMA_VERSION } from '@serenity/core'
 import type { Classification } from '@serenity/core'
 import type { GlobalHashCache } from './hash-cache'

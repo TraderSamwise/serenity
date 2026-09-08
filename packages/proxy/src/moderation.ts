@@ -1,4 +1,4 @@
-import { sha256Hex } from '@serenity/classifier'
+import { sha256Hex } from '@serenity/classifier/runtime'
 import type { Classification, ScoredAxis } from '@serenity/core'
 import { classificationWithScores, MODERATION_MODEL } from './vector'
 

@@ -1,0 +1,6 @@
+name = "serenity-proxy"
+main = "src/worker.ts"
+compatibility_date = "2026-09-08"
+compatibility_flags = ["nodejs_compat"]
+account_id = "14238866831e48d4eaf3aab8f6d30272"
+workers_dev = true

@@ -1,6 +1,6 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
-import { sha256Hex } from '@serenity/classifier'
+import { sha256Hex } from '@serenity/classifier/runtime'
 import type { QuotaOptions, QuotaStore } from './quota'
 
 export interface UpstashQuotaRedis {

@@ -1,5 +1,7 @@
 export * from './classify'
 export * from './config'
+export * from './file-hash-cache'
+export * from './file-quota'
 export * from './hash-cache'
 export * from './http'
 export * from './moderation'

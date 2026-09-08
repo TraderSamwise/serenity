@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtemp, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import { createProxyApp } from '../src/http'
 import { issueInstallToken } from '../src/token'
 import { MemoryGlobalHashCache } from '../src/hash-cache'
@@ -43,40 +40,6 @@ function app() {
           return {
             classification: classification({ insult: 0.2 }),
             usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
-          }
-        },
-      },
-    },
-  })
-}
-
-async function appWithStatsPath(statsPath: string) {
-  return createProxyApp({
-    tokenSecret: secret,
-    statsPath,
-    deps: {
-      cache: new MemoryGlobalHashCache(),
-      quota: new MemoryQuotaStore({
-        perInstallTier2Quota: 10,
-        globalTier2Ceiling: 10,
-        globalTokenCeiling: 10000,
-        tier2Enabled: true,
-      }),
-      tier1: {
-        async moderate() {
-          return moderation({})
-        },
-      },
-      tier2: {
-        async classify() {
-          return {
-            classification: classification({ insult: 0.2 }),
-            usage: {
-              input_tokens: 100,
-              input_tokens_details: { cached_tokens: 80 },
-              output_tokens: 12,
-              total_tokens: 112,
-            },
           }
         },
       },
@@ -126,19 +89,10 @@ describe('POST /classify', () => {
     expect(response.headers.get('access-control-allow-methods')).toContain('POST')
   })
 
-  it('can append count-only classify stats without exposing them in the response', async () => {
-    const statsPath = join(await mkdtemp(join(tmpdir(), 'serenity-proxy-stats-')), 'stats.jsonl')
-    const response = await (await appWithStatsPath(statsPath)).fetch(request({ messages: ['one'] }))
+  it('keeps classify stats internal to the proxy', async () => {
+    const response = await app().fetch(request({ messages: ['one'] }))
     const body = await response.json() as Record<string, unknown>
-    const stats = JSON.parse(await readFile(statsPath, 'utf8')) as {
-      messages: number
-      tier2Classifications: number
-      usage: { cachedInputTokens: number }
-    }
 
     expect(body).not.toHaveProperty('stats')
-    expect(stats.messages).toBe(1)
-    expect(stats.tier2Classifications).toBe(1)
-    expect(stats.usage.cachedInputTokens).toBe(80)
   })
 })
