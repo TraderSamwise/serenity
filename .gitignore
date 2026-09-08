@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.yarn/cache/
+.yarn/install-state.gz
+.pnp.*
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Extension packaging
+*.zip
+*.crx
+*.pem
+web-ext-artifacts/
+
+# Test + tooling caches
+coverage/
+.vitest/
+.turbo/
+.cache/
+.eslintcache
+
+# Secrets and local env — never commit an API key
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# aimux agent runtime state — personal working context, not project files
+.aimux/
