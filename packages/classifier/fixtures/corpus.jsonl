@@ -118,6 +118,36 @@
 {"id":"near-miss-018","text":"I wish the guide included cheaper options.","tags":["near_miss_benign"]}
 {"id":"near-miss-019","text":"That outfit is not my style.","tags":["near_miss_benign"]}
 {"id":"near-miss-020","text":"The poll options are missing the obvious answer.","tags":["near_miss_benign"]}
+{"id":"hostile-low-axis-001","text":"Of course you would call that insight; expectations were already low.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-002","text":"Every time you explain something, the room gets a little less informed.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-003","text":"This is impressive only if the goal was to waste everyone's afternoon.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-004","text":"You keep proving that confidence and usefulness are unrelated.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-005","text":"There is a special kind of emptiness in how certain you sound.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-006","text":"Thanks for reminding everyone why nobody serious listens to this account.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-007","text":"Somehow the silence before you posted had more value.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-008","text":"You have a gift for making simple things feel dumber.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-009","text":"This was almost coherent, which is progress by your standards.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-010","text":"The best part was when it ended and nothing had been learned.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-011","text":"You keep mistaking attention for respect.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-012","text":"It is fascinating how little survives contact with your explanation.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-013","text":"Nobody needed this, but you delivered it with full confidence.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-014","text":"Your audience is patient in a way science should study.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-015","text":"This has the energy of someone being wrong in public for practice.","tags":["hostile_low_axis"]}
+{"id":"hostile-low-axis-twin-001","text":"I expected more from this explanation; the main point still feels unsupported.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-002","text":"This did not make the topic clearer for me.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-003","text":"The post took a long time to reach a useful conclusion.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-004","text":"You sounded confident, but the examples did not back up the claim.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-005","text":"The argument felt thin even though the delivery was polished.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-006","text":"I think this account is stronger when the posts include sources.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-007","text":"The previous silence was better than rushing this update.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-008","text":"The explanation made a simple topic feel more confusing.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-009","text":"This was closer than usual, but it still needs a clearer thesis.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-010","text":"The ending arrived before the useful lesson did.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-011","text":"Attention does not necessarily mean people found the post convincing.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-012","text":"The explanation lost the important details along the way.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-013","text":"I do not think this post added much to the discussion.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-014","text":"Your audience was patient with a rough draft here.","tags":["near_miss_benign","hostile_low_axis_twin"]}
+{"id":"hostile-low-axis-twin-015","text":"This read like an early pass at a complicated topic.","tags":["near_miss_benign","hostile_low_axis_twin"]}
 {"id":"threat-001","text":"Keep talking like that and I will find you after the show.","tags":["severe","threat"]}
 {"id":"threat-002","text":"You will regret posting that when I catch you outside.","tags":["severe","threat"]}
 {"id":"threat-003","text":"I know where your studio is and I am coming there tonight.","tags":["severe","threat"]}
