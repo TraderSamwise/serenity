@@ -4,7 +4,6 @@ import { classifyBatch } from '../src/classify'
 import type { Tier1Client, Tier2Classifier } from '../src/classify'
 import { MemoryQuotaStore } from '../src/quota'
 import type { QuotaOptions } from '../src/quota'
-import { MODERATION_MODEL } from '../src/vector'
 import { classification, moderation } from './helpers'
 
 const openQuota: QuotaOptions = {
@@ -78,13 +77,7 @@ describe('classifyBatch', () => {
       },
     })
 
-    expect(result.results[0]).toMatchObject({
-      status: 'classified',
-      classification: {
-        model: MODERATION_MODEL,
-        scores: { insult: 1 },
-      },
-    })
+    expect(result.results[0]).toEqual({ status: 'hidden', reason: 'tier1_moderation' })
     expect(result.stats.tier1ShortCircuits).toBe(1)
     expect(result.stats.tier2Classifications).toBe(0)
     expect(tier2Calls).toBe(0)
@@ -110,12 +103,7 @@ describe('classifyBatch', () => {
       },
     })
 
-    expect(result.results[0]).toMatchObject({
-      status: 'classified',
-      classification: {
-        scores: { self_harm_directed: 1 },
-      },
-    })
+    expect(result.results[0]).toEqual({ status: 'hidden', reason: 'tier0_local_heuristic' })
     expect(result.stats.localShortCircuits).toBe(1)
     expect(result.stats.tier2Classifications).toBe(0)
     expect(tier1Calls).toBe(0)
@@ -161,10 +149,7 @@ describe('classifyBatch', () => {
       deps,
     )
 
-    expect(first.results[0]).toMatchObject({
-      status: 'classified',
-      classification: { model: MODERATION_MODEL },
-    })
+    expect(first.results[0]).toEqual({ status: 'hidden', reason: 'tier1_moderation' })
     expect(second.results[0]).toMatchObject({
       status: 'classified',
       classification: {
@@ -242,13 +227,7 @@ describe('classifyBatch', () => {
       }),
     )
 
-    expect(result.results[0]).toMatchObject({
-      status: 'classified',
-      classification: {
-        model: MODERATION_MODEL,
-        scores: { insult: 1 },
-      },
-    })
+    expect(result.results[0]).toEqual({ status: 'hidden', reason: 'tier1_moderation' })
     expect(tier2Calls).toBe(0)
   })
 

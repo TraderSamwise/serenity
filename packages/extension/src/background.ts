@@ -2,7 +2,9 @@ import {
   HIDE_OPTIMISTICALLY,
   SERVICES,
   SITE_PROFILES,
+  classifyWithLocalHeuristics,
   evaluate,
+  hiddenByMostPermissiveHandling,
   rulesetFor,
 } from '@serenity/core'
 import type {
@@ -13,6 +15,7 @@ import type {
   HashVerdict,
   MessageVerdict,
   PopupStateResponse,
+  ProxyClassifyResult,
   RefilterCachedMessagesResponse,
   ServiceId,
 } from '@serenity/core'
@@ -26,6 +29,8 @@ import {
   totalHiddenCount,
 } from './settings'
 import type { ExtensionSettings, SettingsStore } from './settings'
+
+type NonClassifiedProxyResult = Extract<ProxyClassifyResult, { status: 'hidden' | 'unclassified' }>
 
 export interface BackgroundDependencies {
   cache: LocalVectorCache
@@ -78,11 +83,25 @@ export async function handleClassifyMessages(
       cached: await deps.cache.get(message.hash),
     })),
   )
-  const missingByHash = new Map(
+  const localHiddenHashes = new Set(
     prepared
       .filter((item) => item.cached === undefined)
+      .filter((item) => {
+        const local = classifyWithLocalHeuristics(item.message.text)
+        return (
+          local !== null &&
+          hiddenByMostPermissiveHandling(local) &&
+          evaluateClassification(local, item.message.stableId, request.serviceId, settings).hide
+        )
+      })
+      .map((item) => item.hash),
+  )
+  const missingByHash = new Map(
+    prepared
+      .filter((item) => item.cached === undefined && !localHiddenHashes.has(item.hash))
       .map((item) => [item.hash, item.message.text]),
   )
+  const proxyResultsByHash = new Map<string, NonClassifiedProxyResult>()
 
   if (missingByHash.size > 0 && settings.proxyToken !== undefined) {
     const texts = [...missingByHash.values()]
@@ -94,9 +113,13 @@ export async function handleClassifyMessages(
     await Promise.all(
       texts.map((text, index) => {
         const result = response.results[index]!
-        if (result.status === 'unclassified') return Promise.resolve()
+        const hash = hashes[index]!
+        if (result.status === 'unclassified' || result.status === 'hidden') {
+          proxyResultsByHash.set(hash, result)
+          return Promise.resolve()
+        }
         return deps.cache.put({
-          hash: hashes[index]!,
+          hash,
           text,
           serviceId: request.serviceId,
           classification: result.classification,
@@ -119,21 +142,28 @@ export async function handleClassifyMessages(
 
   const verdicts = await Promise.all(
     prepared.map(async ({ message, hash }) =>
-      verdictForMessage(message.stableId, hash, request.serviceId, settings, deps.cache),
+      verdictForMessage(
+        message.stableId,
+        hash,
+        request.serviceId,
+        settings,
+        deps.cache,
+        localHiddenHashes,
+        proxyResultsByHash,
+      ),
     ),
   )
   const awaitingVerdict = (
-    await Promise.all(
-      verdicts.map(async (verdict) => {
-        const preparedItem = prepared.find((item) => item.message.stableId === verdict.stableId)
-        return (
-          verdict.status === 'unclassified' ||
-          (verdict.hide && preparedItem !== undefined && (await deps.cache.get(preparedItem.hash)) === undefined)
-        )
-      }),
-    )
+    verdicts.map((verdict) => verdict.status === 'unclassified')
   ).filter(Boolean).length
-  await updateHiddenCount(deps.cache, deps.settingsStore, settings, awaitingVerdict)
+  const hiddenWithoutVector = verdicts.filter((verdict) => verdict.status === 'hidden').length
+  await updateHiddenCount(
+    deps.cache,
+    deps.settingsStore,
+    settings,
+    awaitingVerdict,
+    hiddenWithoutVector,
+  )
 
   return {
     type: 'serenity.classifyMessagesResult',
@@ -200,10 +230,47 @@ async function verdictForMessage(
   serviceId: ServiceId,
   settings: ExtensionSettings,
   cache: LocalVectorCache,
+  localHiddenHashes: ReadonlySet<string> = new Set(),
+  proxyResultsByHash: ReadonlyMap<
+    string,
+    NonClassifiedProxyResult
+  > = new Map(),
 ): Promise<MessageVerdict> {
   const cached = await cache.get(hash)
-  if (cached === undefined) return { stableId, hide: true, status: 'unclassified' }
-  return { stableId, hide: evaluateRecord(cached, serviceId, settings), status: 'classified' }
+  if (cached !== undefined) {
+    return evaluateClassification(cached.classification, stableId, serviceId, settings)
+  }
+  if (localHiddenHashes.has(hash)) {
+    return {
+      stableId,
+      hide: true,
+      status: 'hidden',
+      reason: 'tier0_local_heuristic',
+    }
+  }
+  const proxyResult = proxyResultsByHash.get(hash)
+  if (proxyResult?.status === 'hidden') {
+    return { stableId, hide: true, status: 'hidden', reason: proxyResult.reason }
+  }
+  return {
+    stableId,
+    hide: true,
+    status: 'unclassified',
+    reason: settings.proxyToken === undefined ? 'no_proxy_token' : 'quota_exhausted',
+  }
+}
+
+function evaluateClassification(
+  classification: LocalCacheRecord['classification'],
+  stableId: string,
+  serviceId: ServiceId,
+  settings: ExtensionSettings,
+): MessageVerdict {
+  return {
+    stableId,
+    hide: evaluateForService(classification, serviceId, settings),
+    status: 'classified',
+  }
 }
 
 function evaluateRecord(
@@ -211,9 +278,17 @@ function evaluateRecord(
   serviceId: ServiceId,
   settings: ExtensionSettings,
 ): boolean {
+  return evaluateForService(record.classification, serviceId, settings)
+}
+
+function evaluateForService(
+  classification: LocalCacheRecord['classification'],
+  serviceId: ServiceId,
+  settings: ExtensionSettings,
+): boolean {
   const preset = presetForService(settings, serviceId)
   const service = SERVICES[serviceId]
-  return evaluate(record.classification, rulesetFor(preset, SITE_PROFILES[service.profile])).hide
+  return evaluate(classification, rulesetFor(preset, SITE_PROFILES[service.profile])).hide
 }
 
 async function updateHiddenCount(
@@ -221,12 +296,13 @@ async function updateHiddenCount(
   settingsStore: SettingsStore,
   settings: ExtensionSettings,
   awaitingVerdict = settings.hiddenCounts.awaitingVerdict,
+  hiddenWithoutVector = 0,
 ): Promise<void> {
   const verdicts = await refilterCachedMessages(cache, settings)
   await settingsStore.set({
     ...settings,
     hiddenCounts: {
-      byVerdict: verdicts.filter((verdict) => verdict.hide).length,
+      byVerdict: verdicts.filter((verdict) => verdict.hide).length + hiddenWithoutVector,
       awaitingVerdict,
     },
   })

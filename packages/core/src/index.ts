@@ -1,5 +1,7 @@
 export * from './axes'
 export * from './hash'
+export * from './local-heuristics'
+export * from './local-heuristics-data'
 export * from './messages'
 export * from './presets'
 export * from './ruleset'

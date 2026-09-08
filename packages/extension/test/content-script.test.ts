@@ -149,7 +149,14 @@ describe('X content script', () => {
         return {
           type: 'serenity.classifyMessagesResult',
           optimisticHide: true,
-          verdicts: [{ stableId: 'x-status:222', hide: true, status: 'unclassified' }],
+          verdicts: [
+            {
+              stableId: 'x-status:222',
+              hide: true,
+              status: 'unclassified',
+              reason: 'quota_exhausted',
+            },
+          ],
         } satisfies ClassifyMessagesResponse
       }
       return {

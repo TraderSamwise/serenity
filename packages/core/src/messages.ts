@@ -10,10 +10,29 @@ export interface ExtractedMessage {
   text: string
 }
 
-export interface MessageVerdict {
+export type MessageVerdict =
+  | ClassifiedMessageVerdict
+  | HiddenMessageVerdict
+  | UnclassifiedMessageVerdict
+
+export interface ClassifiedMessageVerdict {
   stableId: string
   hide: boolean
-  status: 'classified' | 'unclassified'
+  status: 'classified'
+}
+
+export interface HiddenMessageVerdict {
+  stableId: string
+  hide: true
+  status: 'hidden'
+  reason: 'tier0_local_heuristic' | 'tier1_moderation'
+}
+
+export interface UnclassifiedMessageVerdict {
+  stableId: string
+  hide: true
+  status: 'unclassified'
+  reason: 'quota_exhausted' | 'no_proxy_token'
 }
 
 export interface HashVerdict {
@@ -38,6 +57,10 @@ export type ProxyClassifyResult =
   | {
       status: 'classified'
       classification: Classification
+    }
+  | {
+      status: 'hidden'
+      reason: 'tier0_local_heuristic' | 'tier1_moderation'
     }
   | {
       status: 'unclassified'

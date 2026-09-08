@@ -5,11 +5,9 @@ import {
 } from '@serenity/core'
 import type { Classification, ScoredAxis } from '@serenity/core'
 
-export const FREE_TIER_MODEL = 'serenity-free-tiers-v1'
-export const LOCAL_HEURISTICS_MODEL = 'serenity-local-heuristics-v1'
 export const MODERATION_MODEL = 'omni-moderation-latest'
 
-export function cleanClassification(model = FREE_TIER_MODEL): Classification {
+export function cleanClassification(model: string): Classification {
   const scores = Object.fromEntries(
     [...HARM_AXES, ...PROTECTIVE_AXES].map((axis: ScoredAxis) => [axis, 0]),
   ) as Record<ScoredAxis, number>

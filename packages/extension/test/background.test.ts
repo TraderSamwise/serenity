@@ -130,7 +130,43 @@ describe('background worker logic', () => {
 
     expect(response).toMatchObject({
       optimisticHide: true,
-      verdicts: [{ stableId: 'a', hide: true, status: 'unclassified' }],
+      verdicts: [{ stableId: 'a', hide: true, status: 'unclassified', reason: 'no_proxy_token' }],
+    })
+  })
+
+  it('short-circuits tier 0 locally without proxy calls or vector cache writes', async () => {
+    const cache = new MemoryLocalVectorCache()
+    const proxy = recordingProxy([])
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+      proxyToken: 'signed-token',
+    })
+    const hash = await hashMessageText('kys')
+
+    const response = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'youtube_comments',
+        messages: [{ stableId: 'local-hit', hash, text: 'kys' }],
+      },
+      { cache, settingsStore, proxy },
+    )
+
+    expect(response.verdicts).toEqual([
+      {
+        stableId: 'local-hit',
+        hide: true,
+        status: 'hidden',
+        reason: 'tier0_local_heuristic',
+      },
+    ])
+    expect(proxy.calls).toEqual([])
+    expect(await cache.get(hash)).toBeUndefined()
+    expect(await settingsStore.get()).toMatchObject({
+      hiddenCounts: { byVerdict: 1, awaitingVerdict: 0 },
     })
   })
 
@@ -158,7 +194,7 @@ describe('background worker logic', () => {
     )
 
     expect(response.verdicts).toEqual([
-      { stableId: 'row-1', hide: true, status: 'unclassified' },
+      { stableId: 'row-1', hide: true, status: 'unclassified', reason: 'quota_exhausted' },
     ])
     expect(await cache.get(hash)).toBeUndefined()
     expect(await settingsStore.get()).toMatchObject({

@@ -1,12 +1,14 @@
+import {
+  classifyWithLocalHeuristics,
+  hiddenByMostPermissiveHandling,
+} from '@serenity/core'
 import type { Classification, ProxyClassifyResult } from '@serenity/core'
 import { classifyWithOpenAIResult } from '@serenity/classifier'
 import type { OpenAIUsage } from '@serenity/classifier'
 import { textHash } from './hash-cache'
 import type { GlobalHashCache } from './hash-cache'
-import { classifyWithLocalHeuristics } from './local-heuristics'
 import {
   classificationFromModeration,
-  hiddenByMostPermissiveHandling,
   moderateWithOpenAI,
 } from './moderation'
 import type { Tier1ModerationResult } from './moderation'
@@ -100,7 +102,7 @@ async function classifyOne(
   const local = classifyWithLocalHeuristics(text)
   if (local !== null && hiddenByMostPermissiveHandling(local)) {
     stats.localShortCircuits += 1
-    return classified(local)
+    return { status: 'hidden', reason: 'tier0_local_heuristic' }
   }
 
   const moderation = await deps.tier1.moderate(text, installId)
@@ -110,7 +112,7 @@ async function classifyOne(
     hiddenByMostPermissiveHandling(tier1Classification)
   ) {
     stats.tier1ShortCircuits += 1
-    return classified(tier1Classification)
+    return { status: 'hidden', reason: 'tier1_moderation' }
   }
 
   if (await deps.quota.canUseTier2(installId)) {

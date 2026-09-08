@@ -91,16 +91,22 @@ the *same vector*, with no second inference call.
 
 | Tier | Cost | Role |
 |---|---|---|
-| 0. Local heuristics | free | Slur/regex list. Catches the floor instantly, offline. |
+| 0. Local heuristics | free | Small conservative regex list in the extension, shared with the proxy through core. Catches the floor instantly, offline. |
 | 1. OpenAI moderation endpoint | free | `omni-moderation-latest`. Catches the obvious. |
 | 2. Cheap structured model | paid | Fills the full axis vector. |
 
-Tier 1 may only *short-circuit to hidden* when the message would also be hidden
-at the most permissive active preset, `balanced`, across supported site
+Tiers 0 and 1 may only *short-circuit to hidden* when the message would also be
+hidden at the most permissive active preset, `balanced`, across supported site
 profiles. `off` is the escape hatch and hides nothing, so using it here would
-make tier 1 unable to short-circuit anything. Otherwise it escalates to tier 2.
-Without this rule, loosening the slider later cannot un-hide anything, and the
-"policy change costs zero tokens" property breaks.
+make the free tiers unable to short-circuit anything. Otherwise the message
+escalates to tier 2. Without this rule, loosening the slider later cannot
+un-hide anything, and the "policy change costs zero tokens" property breaks.
+
+Tier 0 runs in the extension before any proxy request, so obvious floor cases
+hide with no network and no spend. The proxy reuses the same implementation for
+non-extension callers and as a fallback. Tier 0 and tier 1 hidden results are
+outcomes, not axis vectors, and must never be written to the global vector
+cache.
 
 When quota or the hard spend ceiling prevents tier 2 from running and tiers 0-1
 do not catch the message, the proxy returns an explicit **unclassified** result,

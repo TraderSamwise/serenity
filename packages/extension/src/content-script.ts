@@ -111,9 +111,12 @@ export class SerenityContentScript {
   }
 
   async refilter(): Promise<void> {
+    this.hashVerdicts.clear()
+    this.sent.clear()
     const response = await this.runtime.sendMessage({ type: 'serenity.refilterCachedMessages' })
     if (response.type !== 'serenity.refilterCachedMessagesResult') return
     for (const verdict of response.verdicts) this.applyHashVerdict(verdict)
+    await this.scan()
   }
 
   private async extract(rows: readonly Element[]): Promise<ExtractedMessage[]> {

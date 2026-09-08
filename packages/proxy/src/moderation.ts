@@ -1,5 +1,4 @@
 import { sha256Hex } from '@serenity/classifier'
-import { PRESETS, SITE_PROFILES, evaluate, rulesetFor } from '@serenity/core'
 import type { Classification, ScoredAxis } from '@serenity/core'
 import { classificationWithScores, MODERATION_MODEL } from './vector'
 
@@ -20,8 +19,6 @@ interface ModerationApiResult {
     },
   ]
 }
-
-const MOST_PERMISSIVE_PROFILES = [SITE_PROFILES.standard, SITE_PROFILES.nsfw] as const
 
 export async function moderateWithOpenAI(
   text: string,
@@ -81,10 +78,4 @@ export function classificationFromModeration(
 
   if (Object.keys(scores).length === 0) return null
   return classificationWithScores(scores, MODERATION_MODEL)
-}
-
-export function hiddenByMostPermissiveHandling(classification: Classification): boolean {
-  return MOST_PERMISSIVE_PROFILES.every((profile) =>
-    evaluate(classification, rulesetFor(PRESETS.balanced, profile)).hide,
-  )
 }

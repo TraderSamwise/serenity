@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { sha256Hex } from '@serenity/classifier'
+import { hiddenByMostPermissiveHandling } from '@serenity/core'
 import {
   classificationFromModeration,
-  hiddenByMostPermissiveHandling,
   moderateWithOpenAI,
 } from '../src/moderation'
 import { MODERATION_MODEL } from '../src/vector'
