@@ -29,18 +29,40 @@ export class SerenityContentScript {
 
   start(): void {
     void this.scan()
-    const container = this.document.querySelector(this.definition.containerSelector)
-    if (container === null) return
+    this.observeContainer()
+  }
 
+  stop(): void {
+    this.observer?.disconnect()
+    this.observer = null
+  }
+
+  private observeContainer(): void {
+    const container = this.document.querySelector(this.definition.containerSelector)
+    if (container === null) {
+      this.observeDocumentUntilContainerExists()
+      return
+    }
+
+    this.observer?.disconnect()
     this.observer = new this.observerCtor(() => {
       void this.scan()
     })
     this.observer.observe(container, { childList: true, subtree: true })
   }
 
-  stop(): void {
+  private observeDocumentUntilContainerExists(): void {
+    const root = this.document.documentElement
+    if (root === null) return
+
     this.observer?.disconnect()
-    this.observer = null
+    this.observer = new this.observerCtor(() => {
+      void this.scan()
+      if (this.document.querySelector(this.definition.containerSelector) !== null) {
+        this.observeContainer()
+      }
+    })
+    this.observer.observe(root, { childList: true, subtree: true })
   }
 
   async scan(): Promise<void> {
@@ -67,7 +89,7 @@ export class SerenityContentScript {
   }
 
   private async extract(): Promise<ExtractedMessage[]> {
-    const rows = Array.from(this.document.querySelectorAll(this.definition.rowSelector))
+    const rows = collectRows(this.document, this.definition)
     const messages: ExtractedMessage[] = []
     for (const row of rows) {
       if (isExcludedLocationRow(row, this.definition, this.document.location.href)) continue
@@ -98,7 +120,7 @@ export class SerenityContentScript {
   }
 
   private currentRowsForStableId(stableId: string): Element[] {
-    return Array.from(this.document.querySelectorAll(this.definition.rowSelector)).filter(
+    return collectRows(this.document, this.definition).filter(
       (row) => deriveStableId(row, this.definition, this.document.location.href) === stableId,
     )
   }
@@ -132,6 +154,20 @@ export function deriveStableId(
   return deriveAttributeStableId(row, definition)
 }
 
+function collectRows(document: Document, definition: ServiceSelectorDefinition): Element[] {
+  const selectors = [definition.rowSelector, ...(definition.nestedRowSelectors ?? [])]
+  const seen = new Set<Element>()
+  const rows: Element[] = []
+  for (const selector of selectors) {
+    for (const row of document.querySelectorAll(selector)) {
+      if (seen.has(row)) continue
+      seen.add(row)
+      rows.push(row)
+    }
+  }
+  return rows
+}
+
 function deriveAttributeStableId(
   row: Element,
   definition: ServiceSelectorDefinition,
@@ -143,7 +179,7 @@ function deriveAttributeStableId(
   const match = new RegExp(definition.stableId.pattern).exec(value)
   if (match?.[1] === undefined) return null
 
-  const stableId = `${definition.stableId.prefix}${match[1]}`
+  const stableId = `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
   return stableId
 }
 

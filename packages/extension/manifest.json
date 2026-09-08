@@ -18,7 +18,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://x.com/*"],
+      "matches": ["https://x.com/*", "https://www.youtube.com/watch*"],
       "js": ["dist/content-script.js"],
       "run_at": "document_start"
     }

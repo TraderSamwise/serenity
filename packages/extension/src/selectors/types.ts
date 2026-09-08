@@ -5,6 +5,7 @@ export interface ServiceSelectorDefinition {
   urlPattern: string
   containerSelector: string
   rowSelector: string
+  nestedRowSelectors?: readonly string[]
   textSelector: string
   textMode: 'first' | 'all'
   stableId: AttributeStableIdRule

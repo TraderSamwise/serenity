@@ -33,7 +33,7 @@ describe('MV3 manifest', () => {
     })
     expect(manifest.content_scripts).toEqual([
       {
-        matches: ['https://x.com/*'],
+        matches: ['https://x.com/*', 'https://www.youtube.com/watch*'],
         js: ['dist/content-script.js'],
         run_at: 'document_start',
       },

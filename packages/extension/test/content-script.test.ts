@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 import { JSDOM } from 'jsdom'
 import { describe, expect, it } from 'vitest'
 import type {
@@ -12,8 +14,10 @@ import {
   isExcludedLocationRow,
 } from '../src/content-script'
 import { hashMessageText } from '../src/hash'
-import { X_OWN_POST_COMMENT_SELECTORS } from '../src/selectors'
+import { X_OWN_POST_COMMENT_SELECTORS, YOUTUBE_COMMENT_SELECTORS } from '../src/selectors'
 import type { RuntimeMessenger } from '../src/content-script'
+
+const contentScriptPath = fileURLToPath(new URL('../src/content-script.ts', import.meta.url))
 
 describe('X content script', () => {
   it('uses live-verified X status links as stable ids and skips the main post', () => {
@@ -102,6 +106,102 @@ describe('X content script', () => {
   })
 })
 
+describe('YouTube comments content script', () => {
+  it('uses lc permalinks as stable ids for parent comments and expanded replies', () => {
+    const dom = youtubeCommentsDom()
+    const rows = [...dom.window.document.querySelectorAll('ytd-comment-view-model#comment')]
+
+    expect(activeSelectorDefinition(dom.window.location.href)).toBe(YOUTUBE_COMMENT_SELECTORS)
+    expect(deriveStableId(rows[0]!, YOUTUBE_COMMENT_SELECTORS, dom.window.location.href)).toBe(
+      'youtube-comment:UgxParent.001',
+    )
+    expect(deriveStableId(rows[1]!, YOUTUBE_COMMENT_SELECTORS, dom.window.location.href)).toBe(
+      'youtube-comment:UgxReply.002',
+    )
+  })
+
+  it('classifies expanded replies as rows without a YouTube-specific content-script branch', async () => {
+    const dom = youtubeCommentsDom()
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        { stableId: 'youtube-comment:UgxParent.001', hide: false },
+        { stableId: 'youtube-comment:UgxReply.002', hide: true },
+      ],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const rows = [...dom.window.document.querySelectorAll('ytd-comment-view-model#comment')] as HTMLElement[]
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('youtube_comments')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'youtube-comment:UgxParent.001',
+        hash: await hashMessageText('Parent comment text'),
+        text: 'Parent comment text',
+      },
+      {
+        stableId: 'youtube-comment:UgxReply.002',
+        hash: await hashMessageText('Expanded reply text'),
+        text: 'Expanded reply text',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('shown')
+    expect(rows[1]!.dataset.serenityHidden).toBe('verdict')
+
+    const source = await readFile(contentScriptPath, 'utf8')
+    expect(source).not.toContain('youtube_comments')
+    expect(source).not.toContain('YOUTUBE')
+  })
+
+  it('waits for lazy-loaded comments before observing rows', async () => {
+    const dom = new JSDOM('<!doctype html><ytd-watch-flexy></ytd-watch-flexy>', {
+      url: 'https://www.youtube.com/watch?v=abc123',
+    })
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [{ stableId: 'youtube-comment:UgxLazy.003', hide: false }],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    script.start()
+    dom.window.document.querySelector('ytd-watch-flexy')!.innerHTML = `
+      <ytd-comments id="comments">
+        <ytd-comment-thread-renderer>
+          <div id="comment-container">
+            <ytd-comment-view-model id="comment">
+              <a href="/watch?v=abc123&lc=UgxLazy.003"></a>
+              <yt-formatted-string id="content-text">Late loaded comment</yt-formatted-string>
+            </ytd-comment-view-model>
+          </div>
+        </ytd-comment-thread-renderer>
+      </ytd-comments>`
+
+    await waitFor(() => runtime.calls.length === 1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.messages[0]).toMatchObject({
+      stableId: 'youtube-comment:UgxLazy.003',
+      text: 'Late loaded comment',
+    })
+    script.stop()
+  })
+})
+
 function xStatusDom(): JSDOM {
   return new JSDOM(
     `<!doctype html>
@@ -118,6 +218,37 @@ function xStatusDom(): JSDOM {
         </div>
       </main>`,
     { url: 'https://x.com/TraderSamwise/status/111' },
+  )
+}
+
+function youtubeCommentsDom(): JSDOM {
+  return new JSDOM(
+    `<!doctype html>
+      <ytd-watch-flexy>
+        <ytd-comments id="comments">
+          <ytd-item-section-renderer id="sections">
+            <ytd-comment-thread-renderer>
+              <div id="comment-container">
+                <ytd-comment-view-model id="comment">
+                  <a id="published-time-text" href="/watch?v=abc123&lc=UgxParent.001"></a>
+                  <yt-formatted-string id="content-text">Parent comment text</yt-formatted-string>
+                </ytd-comment-view-model>
+              </div>
+              <ytd-comment-replies-renderer>
+                <div id="expanded-threads">
+                  <yt-sub-thread>
+                    <ytd-comment-view-model id="comment">
+                      <a id="published-time-text" href="/watch?v=abc123&lc=UgxReply%2E002"></a>
+                      <yt-formatted-string id="content-text">Expanded reply text</yt-formatted-string>
+                    </ytd-comment-view-model>
+                  </yt-sub-thread>
+                </div>
+              </ytd-comment-replies-renderer>
+            </ytd-comment-thread-renderer>
+          </ytd-item-section-renderer>
+        </ytd-comments>
+      </ytd-watch-flexy>`,
+    { url: 'https://www.youtube.com/watch?v=abc123' },
   )
 }
 
