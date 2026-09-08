@@ -7,11 +7,13 @@ import type { Classification, ScoredAxis } from '@serenity/core'
 
 export const CLASSIFIER_MODEL = 'gpt-5-mini-2025-08-07'
 
-const METRIC_FIELDS = ['sentiment', 'targeted', 'confidence'] as const
+export const METRIC_FIELDS = ['sentiment', 'targeted', 'confidence'] as const
 
 export type ClassifierMetricField = (typeof METRIC_FIELDS)[number]
+export type ClassifierOutputField = ScoredAxis | ClassifierMetricField
 export type ClassifierOutput = Record<ScoredAxis, number> &
   Record<ClassifierMetricField, number>
+export type PartialClassifierOutput = Partial<Record<ClassifierOutputField, number>>
 
 type JsonSchemaProperty = {
   type: 'number'
@@ -41,32 +43,46 @@ const axisProperties = Object.fromEntries(
 
 export const CLASSIFIER_OUTPUT_FIELDS = [...SCORED_AXES, ...METRIC_FIELDS] as const
 
-export const CLASSIFIER_JSON_SCHEMA: JsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: CLASSIFIER_OUTPUT_FIELDS,
-  properties: {
-    ...axisProperties,
-    sentiment: {
-      type: 'number',
-      minimum: -1,
-      maximum: 1,
-      description: '-1 is hostile toward the recipient, 0 is neutral, 1 is warm.',
-    },
-    targeted: {
-      type: 'number',
-      minimum: 0,
-      maximum: 1,
-      description: '0 is about others or the world, 1 is directed at the recipient.',
-    },
-    confidence: {
-      type: 'number',
-      minimum: 0,
-      maximum: 1,
-      description: 'Model confidence in the full descriptive vector.',
-    },
+const metricProperties: Record<ClassifierMetricField, JsonSchemaProperty> = {
+  sentiment: {
+    type: 'number',
+    minimum: -1,
+    maximum: 1,
+    description: '-1 is hostile toward the recipient, 0 is neutral, 1 is warm.',
+  },
+  targeted: {
+    type: 'number',
+    minimum: 0,
+    maximum: 1,
+    description: '0 is about others or the world, 1 is directed at the recipient.',
+  },
+  confidence: {
+    type: 'number',
+    minimum: 0,
+    maximum: 1,
+    description: 'Model confidence in the requested descriptive fields.',
   },
 }
+
+export function classifierJsonSchemaForFields(
+  fields: readonly ClassifierOutputField[] = CLASSIFIER_OUTPUT_FIELDS,
+): JsonSchema {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: fields,
+    properties: Object.fromEntries(
+      fields.map((field) => [
+        field,
+        field in axisProperties
+          ? axisProperties[field as ScoredAxis]
+          : metricProperties[field as ClassifierMetricField],
+      ]),
+    ) as Record<string, JsonSchemaProperty>,
+  }
+}
+
+export const CLASSIFIER_JSON_SCHEMA: JsonSchema = classifierJsonSchemaForFields()
 
 export function outputToClassification(
   output: ClassifierOutput,

@@ -4,7 +4,7 @@ import {
   loadClassificationCache,
   readCorpusJsonl,
 } from './cache'
-import { classifyWithOpenAIResult } from './openai'
+import { classifyFieldsWithOpenAIResult } from './openai'
 
 const CORPUS_PATH = resolve('fixtures/corpus.jsonl')
 const CACHE_PATH = resolve('fixtures/classification-cache.v1.json')
@@ -24,15 +24,16 @@ async function main(): Promise<void> {
   const cache = await loadClassificationCache(CACHE_PATH)
   const usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
   const started = Date.now()
-  const result = await classifyMissingCorpusEntries(corpus, cache, CACHE_PATH, async (message) => {
-    const response = await classifyWithOpenAIResult(message, {
+  const result = await classifyMissingCorpusEntries(corpus, cache, CACHE_PATH, async (message, fields) => {
+    const response = await classifyFieldsWithOpenAIResult(message, {
       apiKey,
       installId: process.env.SERENITY_INSTALL_ID ?? DEFAULT_INSTALL_ID,
+      fields,
     })
     usage.inputTokens += response.usage.input_tokens
     usage.outputTokens += response.usage.output_tokens
     usage.totalTokens += response.usage.total_tokens
-    return response.classification
+    return response.output
   })
   const wallClockSeconds = (Date.now() - started) / 1000
 

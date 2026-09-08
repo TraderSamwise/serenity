@@ -11,7 +11,7 @@ describe('classifier prompt', () => {
     }
 
     expect(prompt).toContain('Describe what is present')
-    expect(prompt).toContain('Score each taxonomy axis from 0 to 1')
+    expect(prompt).toContain('Score each requested taxonomy axis from 0 to 1')
   })
 
   it('does not ask for moderation or visibility decisions', () => {

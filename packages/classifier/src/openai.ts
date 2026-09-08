@@ -1,11 +1,12 @@
 import type { CorpusMessage } from './cache'
 import { buildClassifierSystemPrompt, buildClassifierUserPrompt } from './prompt'
 import {
-  CLASSIFIER_JSON_SCHEMA,
   CLASSIFIER_MODEL,
+  CLASSIFIER_OUTPUT_FIELDS,
+  classifierJsonSchemaForFields,
   outputToClassification,
 } from './schema'
-import type { ClassifierOutput } from './schema'
+import type { ClassifierOutput, ClassifierOutputField, PartialClassifierOutput } from './schema'
 import { sha256Hex } from './hash'
 
 type Fetch = typeof fetch
@@ -36,6 +37,11 @@ export interface OpenAIClassificationResult {
   usage: OpenAIUsage
 }
 
+export interface OpenAIFieldClassificationResult {
+  output: PartialClassifierOutput
+  usage: OpenAIUsage
+}
+
 function parseResponsesApiText(result: ResponsesApiResult): string {
   const text = result.output
     .flatMap((item) => item.content)
@@ -52,6 +58,25 @@ export async function classifyWithOpenAIResult(
     fetchImpl?: Fetch
   },
 ) {
+  const response = await classifyFieldsWithOpenAIResult(message, {
+    ...options,
+    fields: CLASSIFIER_OUTPUT_FIELDS,
+  })
+  return {
+    classification: outputToClassification(response.output as ClassifierOutput),
+    usage: response.usage,
+  }
+}
+
+export async function classifyFieldsWithOpenAIResult(
+  message: CorpusMessage,
+  options: {
+    apiKey: string
+    installId: string
+    fields: readonly ClassifierOutputField[]
+    fetchImpl?: Fetch
+  },
+): Promise<OpenAIFieldClassificationResult> {
   const fetchImpl = options.fetchImpl ?? fetch
   const response = await fetchImpl('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -64,7 +89,7 @@ export async function classifyWithOpenAIResult(
       safety_identifier: sha256Hex(options.installId),
       reasoning: { effort: 'minimal' },
       input: [
-        { role: 'system', content: buildClassifierSystemPrompt() },
+        { role: 'system', content: buildClassifierSystemPrompt(options.fields) },
         { role: 'user', content: buildClassifierUserPrompt(message.text) },
       ],
       text: {
@@ -72,7 +97,7 @@ export async function classifyWithOpenAIResult(
           type: 'json_schema',
           name: 'serenity_classification_v1',
           strict: true,
-          schema: CLASSIFIER_JSON_SCHEMA,
+          schema: classifierJsonSchemaForFields(options.fields),
         },
       },
       max_output_tokens: 500,
@@ -84,9 +109,9 @@ export async function classifyWithOpenAIResult(
   }
 
   const result = (await response.json()) as ResponsesApiResult
-  const output = JSON.parse(parseResponsesApiText(result)) as ClassifierOutput
+  const output = JSON.parse(parseResponsesApiText(result)) as PartialClassifierOutput
   if (result.usage === undefined) throw new Error('OpenAI response did not include usage.')
-  return { classification: outputToClassification(output), usage: result.usage }
+  return { output, usage: result.usage }
 }
 
 export async function classifyWithOpenAI(
