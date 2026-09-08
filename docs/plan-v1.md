@@ -68,9 +68,11 @@ DOM" below.
   been judged, even if our JavaScript is slow, throws, or never runs at all.
   This is the fail-closed default and it is the whole flash story.
 - **Content script** per service: a MutationObserver over the message list reads
-  each new row's text and holds a reference to the node. Coarse text is fine —
-  the row's `textContent`, even with some surrounding markup noise, classifies
-  correctly, so no precise text selector is needed.
+  each new row's text and holds a reference to the node. It uses a service
+  `textSelector` when measured row text is noisy, otherwise falls back to the
+  row's `textContent`. Extraction quality feeds the cache key: usernames,
+  relative timestamps, counts, and action labels reduce cross-user dedupe and
+  increase cold-classification tokens, not just classifier accuracy.
 - **Background worker**: batches, dedupes, owns the local cache, applies the
   ruleset. The ruleset runs *client-side* — the server never knows a user's
   settings.

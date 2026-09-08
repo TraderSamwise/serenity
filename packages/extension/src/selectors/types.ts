@@ -6,6 +6,7 @@ export interface ServiceSelectorDefinition {
   frameSelector?: string
   containerSelector: string
   rowSelector: string
+  textSelector?: string
   nestedRowSelectors?: readonly string[]
   skipFirstRow?: boolean
 }

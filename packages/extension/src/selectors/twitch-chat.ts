@@ -5,4 +5,5 @@ export const TWITCH_CHAT_SELECTORS = {
   urlPattern: String.raw`^https://www\.twitch\.tv/(?!directory(?:/|$)|videos(?:/|$)|settings(?:/|$)|subscriptions(?:/|$)|wallet(?:/|$))[A-Za-z0-9_]{3,25}(?:\?|$|/)`,
   containerSelector: '[data-a-target="chat-scroller"]',
   rowSelector: '[data-a-target="chat-line-message"]',
+  textSelector: '[data-a-target="chat-line-message-body"]',
 } as const satisfies ServiceSelectorDefinition

@@ -91,9 +91,9 @@ export class SerenityContentScript {
     for (const row of rows) {
       if (this.processed.has(row)) continue
       this.processed.add(row)
-      const text = extractText(row)
+      const text = extractText(row, this.definition)
       if (text === null) {
-        applyVerdict(row, false)
+        if (this.definition.textSelector === undefined) applyVerdict(row, false)
         continue
       }
       messages.push({ row, hash: await hashMessageText(text), text })
@@ -248,8 +248,10 @@ function hashStyleKey(definition: ServiceSelectorDefinition): string {
   return hash.toString(36)
 }
 
-function extractText(row: Element): string | null {
-  const text = row.textContent?.trim() ?? ''
+function extractText(row: Element, definition: ServiceSelectorDefinition): string | null {
+  const source = definition.textSelector === undefined ? row : row.querySelector(definition.textSelector)
+  if (source === null) return null
+  const text = source?.textContent?.trim() ?? ''
   return text.length === 0 ? null : text
 }
 

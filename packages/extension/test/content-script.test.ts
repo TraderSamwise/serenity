@@ -48,7 +48,7 @@ describe('content script DOM suppression', () => {
     script.stop()
   })
 
-  it('uses row textContent and hash-keyed verdicts, skipping the creator post row on X status pages', async () => {
+  it('falls back to row textContent and hash-keyed verdicts when no text selector is declared', async () => {
     const dom = xStatusDom()
     const hash = await hashMessageText('Constructive but blunt reply')
     const runtime = recordingRuntime(async () => ({
@@ -73,6 +73,58 @@ describe('content script DOM suppression', () => {
       messages: [{ hash, text: 'Constructive but blunt reply' }],
     })
     expect(reply.dataset.serenityHidden).toBe('shown')
+  })
+
+  it('uses optional text selectors for cache-stable message text', async () => {
+    const dom = youtubeCommentsDom()
+    const hash = await hashMessageText('Parent comment text')
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: [{ hash, hide: false, status: 'classified' }],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    await script.scan()
+
+    expect((runtime.calls[0] as ClassifyMessagesRequest).messages[0]).toEqual({
+      hash,
+      text: 'Parent comment text',
+    })
+  })
+
+  it('does not fall back to row chrome when a declared text selector is missing', async () => {
+    const dom = new JSDOM(
+      `<!doctype html>
+        <ytd-comments id="comments">
+          <ytd-comment-thread-renderer>
+            <div id="comment-container">
+              <ytd-comment-view-model id="comment">Display name 1 day ago Reply</ytd-comment-view-model>
+            </div>
+          </ytd-comment-thread-renderer>
+        </ytd-comments>`,
+      { url: 'https://www.youtube.com/watch?v=abc123' },
+    )
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: [],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const row = dom.window.document.querySelector('ytd-comment-view-model#comment') as HTMLElement
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(0)
+    expect(row.dataset.serenityHidden).toBeUndefined()
   })
 
   it('refilters by rescanning present DOM rows with no stored row identity', async () => {
@@ -221,7 +273,10 @@ describe('content script DOM suppression', () => {
     nextScroller.dataset.aTarget = 'chat-scroller'
     const nextRow = dom.window.document.createElement('div')
     nextRow.dataset.aTarget = 'chat-line-message'
-    nextRow.textContent = 'Replacement chat line'
+    const nextBody = dom.window.document.createElement('span')
+    nextBody.dataset.aTarget = 'chat-line-message-body'
+    nextBody.textContent = 'Replacement chat line'
+    nextRow.append(nextBody)
     nextScroller.append(nextRow)
     firstScroller.replaceWith(nextScroller)
 
@@ -254,7 +309,8 @@ describe('selector-driven services', () => {
   it('classifies YouTube parent comments and expanded replies without service branches', async () => {
     const dom = youtubeCommentsDom()
     const rows = [...dom.window.document.querySelectorAll('ytd-comment-view-model#comment')] as HTMLElement[]
-    const hashes = await Promise.all(rows.map((row) => hashMessageText(row.textContent!.trim())))
+    const texts = ['Parent comment text', 'Expanded reply text']
+    const hashes = await Promise.all(texts.map((text) => hashMessageText(text)))
     const runtime = recordingRuntime(async () => ({
       type: 'serenity.classifyMessagesResult',
       verdicts: [
@@ -323,7 +379,7 @@ describe('selector-driven services', () => {
   it('keeps Twitch system rows out declaratively and sends only chat row text', async () => {
     const dom = twitchChatDom()
     const rows = [...dom.window.document.querySelectorAll('[data-a-target="chat-line-message"]')] as HTMLElement[]
-    const hashes = await Promise.all(rows.map((row) => hashMessageText(row.textContent!.trim())))
+    const hashes = await Promise.all(['First chat line', 'WaveEmoteName'].map((text) => hashMessageText(text)))
     const runtime = recordingRuntime(async () => ({
       type: 'serenity.classifyMessagesResult',
       verdicts: [
@@ -390,7 +446,7 @@ describe('selector-driven services', () => {
     for (const script of scripts) script.stop()
   })
 
-  it('keeps selector data compact: row selectors only, no identity or surface labels', () => {
+  it('keeps selector data compact: no identity or surface labels', () => {
     expect(defaultHideCss(YOUTUBE_COMMENT_SELECTORS)).toContain(
       'ytd-comment-replies-renderer #expanded-threads ytd-comment-view-model#comment:not([data-serenity-hidden="shown"])',
     )
@@ -402,7 +458,7 @@ describe('selector-driven services', () => {
       ONLYFANS_DM_LIST_SELECTORS,
       ONLYFANS_DM_SELECTORS,
       ONLYFANS_COMMENT_SELECTORS,
-    ])).not.toMatch(new RegExp(`stable${'Id'}|text${'Selector'}|surface${'Type'}|react-${'prop'}|vue-${'prop'}`))
+    ])).not.toMatch(new RegExp(`stable${'Id'}|surface${'Type'}|react-${'prop'}|vue-${'prop'}`))
   })
 })
 
@@ -454,11 +510,23 @@ function youtubeCommentsDom(): JSDOM {
         <ytd-comments id="comments">
           <ytd-comment-thread-renderer>
             <div id="comment-container">
-              <ytd-comment-view-model id="comment"><yt-formatted-string>Parent comment text</yt-formatted-string></ytd-comment-view-model>
+              <ytd-comment-view-model id="comment">
+                <div id="header">Display name 2 days ago</div>
+                <div id="content">
+                  <span class="ytAttributedStringHost ytAttributedStringWhiteSpacePreWrap">Parent comment text</span>
+                </div>
+                <div id="toolbar">Reply 14 likes</div>
+              </ytd-comment-view-model>
             </div>
             <ytd-comment-replies-renderer>
               <div id="expanded-threads">
-                <ytd-comment-view-model id="comment"><yt-formatted-string>Expanded reply text</yt-formatted-string></ytd-comment-view-model>
+                <ytd-comment-view-model id="comment">
+                  <div id="header">Display name 1 day ago</div>
+                  <div id="content">
+                    <span class="ytAttributedStringHost ytAttributedStringWhiteSpacePreWrap">Expanded reply text</span>
+                  </div>
+                  <div id="toolbar">Reply 2 likes</div>
+                </ytd-comment-view-model>
               </div>
             </ytd-comment-replies-renderer>
           </ytd-comment-thread-renderer>
@@ -475,7 +543,11 @@ function youtubeWatchDom(): JSDOM {
         <ytd-comments id="comments">
           <ytd-comment-thread-renderer>
             <div id="comment-container">
-              <ytd-comment-view-model id="comment">Parent comment text</ytd-comment-view-model>
+              <ytd-comment-view-model id="comment">
+                <div id="content">
+                  <span class="ytAttributedStringHost ytAttributedStringWhiteSpacePreWrap">Parent comment text</span>
+                </div>
+              </ytd-comment-view-model>
             </div>
           </ytd-comment-thread-renderer>
         </ytd-comments>
@@ -505,8 +577,14 @@ function twitchChatDom(): JSDOM {
       <main>
         <div data-a-target="chat-scroller" role="log">
           <div data-a-target="chat-welcome-message">Welcome row</div>
-          <div data-a-target="chat-line-message">First chat line</div>
-          <div data-a-target="chat-line-message"><span>Wave</span><span>EmoteName</span></div>
+          <div data-a-target="chat-line-message">
+            <span data-a-target="chat-message-username">UserOne</span>
+            <span data-a-target="chat-line-message-body">First chat line</span>
+          </div>
+          <div data-a-target="chat-line-message">
+            <span data-a-target="chat-message-username">UserTwo</span>
+            <span data-a-target="chat-line-message-body"><span>Wave</span><span>EmoteName</span></span>
+          </div>
         </div>
       </main>`,
     { url: 'https://www.twitch.tv/live_channel' },
@@ -517,8 +595,16 @@ function onlyFansDmListDom(): JSDOM {
   return new JSDOM(
     `<!doctype html>
       <div class="b-chats__list-dialogues">
-        <div class="b-chats__item">First preview fixture</div>
-        <div class="b-chats__item">Second preview fixture</div>
+        <div class="b-chats__item">
+          <span class="g-user-name">Display name</span>
+          <div class="b-chats__item__last-message__content">First preview fixture</div>
+          <div class="b-chats__item__time">1h</div>
+        </div>
+        <div class="b-chats__item">
+          <span class="g-user-name">Display name</span>
+          <div class="b-chats__item__last-message__content">Second preview fixture</div>
+          <div class="b-chats__item__time">2h</div>
+        </div>
       </div>`,
     { url: 'https://onlyfans.com/my/chats/' },
   )
@@ -538,7 +624,11 @@ function onlyFansDmDom(): JSDOM {
     `<!doctype html>
       <div class="b-chat__messages">
         <div class="b-chat__message__system m-timeline">Timeline row</div>
-        <div class="b-chat__message m-text">DM fixture text</div>
+        <div class="b-chat__message m-text">
+          <span class="b-chat__message__time">12:00</span>
+          <div class="b-chat__message__text">DM fixture text</div>
+          <button>Reply</button>
+        </div>
       </div>`,
     { url: 'https://onlyfans.com/my/chats/chat/564580593/' },
   )
@@ -548,8 +638,16 @@ function onlyFansCommentDom(): JSDOM {
   return new JSDOM(
     `<!doctype html>
       <div class="b-comments__list">
-        <div class="b-comments__item m-break-word g-position-relative">First comment fixture</div>
-        <div class="b-comments__item m-break-word g-position-relative">Second comment fixture</div>
+        <div class="b-comments__item m-break-word g-position-relative">
+          <a class="b-username">Display name</a>
+          <div class="b-comments__item-text">First comment fixture</div>
+          <div class="b-comments__item__actions">Reply 1h</div>
+        </div>
+        <div class="b-comments__item m-break-word g-position-relative">
+          <a class="b-username">Display name</a>
+          <div class="b-comments__item-text">Second comment fixture</div>
+          <div class="b-comments__item__actions">Reply 2h</div>
+        </div>
       </div>`,
     { url: 'https://onlyfans.com/2728816652/bella.lee' },
   )
