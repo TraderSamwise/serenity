@@ -4,7 +4,7 @@ import { sha256Hex } from '@serenity/classifier'
 import type { QuotaOptions, QuotaStore } from './quota'
 
 export interface UpstashQuotaRedis {
-  incr(key: string): Promise<number>
+  eval<TResult>(script: string, keys: string[], args: string[]): Promise<TResult>
   incrby(key: string, increment: number): Promise<number>
 }
 
@@ -20,6 +20,7 @@ export class UpstashQuotaStore implements QuotaStore {
     private readonly redis: UpstashQuotaRedis,
     private readonly installRatelimiter: UpstashInstallRatelimiter,
     private readonly options: QuotaOptions,
+    private readonly keyPrefix = UPSTASH_QUOTA_KEY_PREFIX,
   ) {}
 
   async reserveTier2(installId: string, estimatedTokens: number): Promise<boolean> {
@@ -32,21 +33,43 @@ export class UpstashQuotaStore implements QuotaStore {
       return false
     }
 
+    const reserved = await this.reserveGlobalTier2(estimatedTokens)
+    if (!reserved) return false
+
     const installKey = installUsageKey(installId)
     const installLimit = await this.installRatelimiter.limit(installKey)
     await installLimit.pending
-    if (!installLimit.success) return false
+    if (!installLimit.success) {
+      await this.releaseGlobalTier2(estimatedTokens)
+      return false
+    }
 
-    const classifications = await this.redis.incr(globalClassificationsKey())
-    if (classifications > this.options.globalTier2Ceiling) return false
-
-    const tokens = await this.redis.incrby(globalTokensKey(), estimatedTokens)
-    return tokens <= this.options.globalTokenCeiling
+    return true
   }
 
   async recordTier2(_installId: string, tokens: number, reservedTokens: number): Promise<void> {
     const adjustment = tokens - reservedTokens
-    if (adjustment !== 0) await this.redis.incrby(globalTokensKey(), adjustment)
+    if (adjustment !== 0) await this.redis.incrby(globalTokensKey(this.keyPrefix), adjustment)
+  }
+
+  private async reserveGlobalTier2(estimatedTokens: number): Promise<boolean> {
+    const reserved = await this.redis.eval<number>(
+      GLOBAL_RESERVE_SCRIPT,
+      [globalClassificationsKey(this.keyPrefix), globalTokensKey(this.keyPrefix)],
+      [
+        String(estimatedTokens),
+        String(this.options.globalTier2Ceiling),
+        String(this.options.globalTokenCeiling),
+      ],
+    )
+    return reserved === 1
+  }
+
+  private async releaseGlobalTier2(estimatedTokens: number): Promise<void> {
+    await Promise.all([
+      this.redis.incrby(globalClassificationsKey(this.keyPrefix), -1),
+      this.redis.incrby(globalTokensKey(this.keyPrefix), -estimatedTokens),
+    ])
   }
 }
 
@@ -54,8 +77,10 @@ export function createUpstashQuotaStore(options: {
   url: string
   token: string
   quota: QuotaOptions
+  keyPrefix?: string
 }): UpstashQuotaStore {
   const redis = new Redis({ url: options.url, token: options.token })
+  const keyPrefix = options.keyPrefix ?? UPSTASH_QUOTA_KEY_PREFIX
   return new UpstashQuotaStore(
     redis,
     new Ratelimit({
@@ -64,19 +89,35 @@ export function createUpstashQuotaStore(options: {
         Math.max(1, options.quota.perInstallTier2Quota),
         '1 d',
       ),
-      prefix: 'serenity:ratelimit:tier2-per-install',
+      prefix: `${keyPrefix}:ratelimit:tier2-per-install`,
       ephemeralCache: false,
     }),
     options.quota,
+    keyPrefix,
   )
 }
 
-export function globalClassificationsKey(): string {
-  return 'serenity:quota:global:tier2-classifications'
+export const UPSTASH_QUOTA_KEY_PREFIX = 'serenity'
+
+export const GLOBAL_RESERVE_SCRIPT = [
+  'local classifications = tonumber(redis.call("GET", KEYS[1]) or "0")',
+  'local tokens = tonumber(redis.call("GET", KEYS[2]) or "0")',
+  'local estimated_tokens = tonumber(ARGV[1])',
+  'local classification_ceiling = tonumber(ARGV[2])',
+  'local token_ceiling = tonumber(ARGV[3])',
+  'if classifications + 1 > classification_ceiling then return 0 end',
+  'if tokens + estimated_tokens > token_ceiling then return 0 end',
+  'redis.call("INCR", KEYS[1])',
+  'redis.call("INCRBY", KEYS[2], estimated_tokens)',
+  'return 1',
+].join('\n')
+
+export function globalClassificationsKey(prefix = UPSTASH_QUOTA_KEY_PREFIX): string {
+  return `${prefix}:quota:global:tier2-classifications`
 }
 
-export function globalTokensKey(): string {
-  return 'serenity:quota:global:tokens'
+export function globalTokensKey(prefix = UPSTASH_QUOTA_KEY_PREFIX): string {
+  return `${prefix}:quota:global:tokens`
 }
 
 export function installUsageKey(installId: string): string {

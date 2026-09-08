@@ -1,0 +1,22 @@
+{
+  "labelVersion": 2,
+  "model": "gpt-5-mini-2025-08-07",
+  "rubricVersion": 6,
+  "contexts": {
+    "aggressive_standard": {
+      "agreementFloor": 1,
+      "maxRecallMisses": 0,
+      "maxFalsePositives": 0
+    },
+    "balanced_standard": {
+      "agreementFloor": 0.9666666666666667,
+      "maxRecallMisses": 2,
+      "maxFalsePositives": 0
+    },
+    "aggressive_nsfw": {
+      "agreementFloor": 1,
+      "maxRecallMisses": 0,
+      "maxFalsePositives": 0
+    }
+  }
+}

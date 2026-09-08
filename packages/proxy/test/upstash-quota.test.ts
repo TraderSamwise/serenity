@@ -24,9 +24,10 @@ describe('UpstashQuotaStore', () => {
 
     expect(ratelimiter.identifiers).toEqual([sha256Hex('install-123')])
     expect(redis.operations).toEqual([
-      ['incr', globalClassificationsKey()],
-      ['incrby', globalTokensKey(), 75],
+      ['eval', [globalClassificationsKey(), globalTokensKey()], ['75', '10', '1000']],
     ])
+    expect(redis.values.get(globalClassificationsKey())).toBe(1)
+    expect(redis.values.get(globalTokensKey())).toBe(75)
   })
 
   it('does not reserve global counters when the per-install daily limit denies', async () => {
@@ -35,7 +36,13 @@ describe('UpstashQuotaStore', () => {
     const store = new UpstashQuotaStore(redis, ratelimiter, openQuota)
 
     expect(await store.reserveTier2('install-123', 75)).toBe(false)
-    expect(redis.operations).toEqual([])
+    expect(redis.operations).toEqual([
+      ['eval', [globalClassificationsKey(), globalTokensKey()], ['75', '10', '1000']],
+      ['incrby', globalClassificationsKey(), -1],
+      ['incrby', globalTokensKey(), -75],
+    ])
+    expect(redis.values.get(globalClassificationsKey())).toBe(0)
+    expect(redis.values.get(globalTokensKey())).toBe(0)
   })
 
   it('blocks tier 2 when the global classification ceiling is exhausted', async () => {
@@ -47,6 +54,7 @@ describe('UpstashQuotaStore', () => {
 
     expect(await store.reserveTier2('install-123', 10)).toBe(true)
     expect(await store.reserveTier2('install-123', 10)).toBe(false)
+    expect(redis.values.get(globalClassificationsKey())).toBe(1)
   })
 
   it('blocks tier 2 when the global token reservation crosses the ceiling', async () => {
@@ -58,6 +66,7 @@ describe('UpstashQuotaStore', () => {
 
     expect(await store.reserveTier2('install-123', 60)).toBe(true)
     expect(await store.reserveTier2('install-123', 50)).toBe(false)
+    expect(redis.values.get(globalTokensKey())).toBe(60)
   })
 
   it('reconciles reserved token estimates to actual usage with atomic increments', async () => {
@@ -85,13 +94,22 @@ describe('UpstashQuotaStore', () => {
 
 class FakeQuotaRedis {
   readonly values = new Map<string, number>()
-  readonly operations: Array<['incr', string] | ['incrby', string, number]> = []
+  readonly operations: Array<
+    ['eval', string[], string[]] | ['incrby', string, number]
+  > = []
 
-  async incr(key: string): Promise<number> {
-    this.operations.push(['incr', key])
-    const value = (this.values.get(key) ?? 0) + 1
-    this.values.set(key, value)
-    return value
+  async eval<TResult>(_script: string, keys: string[], args: string[]): Promise<TResult> {
+    this.operations.push(['eval', keys, args])
+    const [classificationKey, tokenKey] = keys
+    const [estimatedTokens, classificationCeiling, tokenCeiling] = args.map(Number)
+    const classifications = this.values.get(classificationKey!) ?? 0
+    const tokens = this.values.get(tokenKey!) ?? 0
+    if (classifications + 1 > classificationCeiling! || tokens + estimatedTokens! > tokenCeiling!) {
+      return 0 as TResult
+    }
+    this.values.set(classificationKey!, classifications + 1)
+    this.values.set(tokenKey!, tokens + estimatedTokens!)
+    return 1 as TResult
   }
 
   async incrby(key: string, increment: number): Promise<number> {

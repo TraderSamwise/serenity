@@ -8,6 +8,7 @@
   "scripts": {
     "build": "yarn workspaces run build",
     "typecheck": "yarn workspaces run typecheck",
-    "test": "yarn workspaces run test"
+    "test": "yarn workspaces run test",
+    "golden:gate": "yarn workspace @serenity/classifier golden:gate"
   }
 }

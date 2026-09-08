@@ -11,6 +11,7 @@
     "fixtures:write": "tsx src/write-corpus.ts",
     "classify": "node --env-file-if-exists=.env.local --import tsx src/run.ts",
     "price:probe": "node --env-file-if-exists=.env.local --import tsx src/price-probe.ts",
+    "golden:gate": "node --import tsx src/golden-gate.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
