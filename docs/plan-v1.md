@@ -15,6 +15,9 @@ agency to read it for them. Their alternative is *nothing*. So:
 - **The creator never sees the abuse, not even summarised.** No preview text,
   no inline "hidden: threat" badge, no hover-to-reveal beside the message.
   Counts and search-on-demand only.
+- DM services include conversation-list previews as well as open transcripts.
+  A transcript selector alone still leaks the newest message on the unavoidable
+  inbox list.
 
 ## Scope
 
@@ -27,6 +30,11 @@ agency to read it for them. Their alternative is *nothing*. So:
 - Classification via a hosted proxy holding the API key.
 - Three aggression presets plus per-site overrides.
 - Hidden-count surfaced in the popup, nowhere else.
+
+For DM conversation lists, suppressing the preview text is the default design
+direction when the platform exposes a stable last-message id. Hiding the entire
+conversation row prevents the creator from knowing the conversation exists;
+showing the preview leaks exactly the summary the product promises not to show.
 
 **v1 does not ship**
 
