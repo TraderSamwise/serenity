@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { readJsonl } from '../src/labeling'
-import { reconcileSpendLedgerRow } from '../src/spend-ledger'
+import { reconcileSpendLedgerRow, reconcileSpendLedgerRowByRatio } from '../src/spend-ledger'
 import type { SpendLedgerRow } from '../src/spend-ledger'
 
 const ledgerPath = fileURLToPath(new URL('../spend-ledger.v1.jsonl', import.meta.url))
@@ -25,8 +25,19 @@ describe('spend ledger', () => {
 
     expect(backfilled[4]).toMatchObject({
       rubricVersion: 5,
-      cachedInputTokens: null,
-      costStatus: 'estimated_unreconciled',
+      cachedInputTokens: 957_699,
+      measuredCostUsd: 0.15,
+      costStatus: 'reconciled_by_ratio',
+    })
+
+    const probe = rows.find((row) => row.source === 'price_probe')
+    expect(probe).toMatchObject({
+      messagesClassified: 18,
+      cachedInputTokens: 0,
+      estimatedCostUsd: 0.00264075,
+      measuredCostUsd: 0.00264075,
+      costStatus: 'reconciled',
+      dashboardRatio: 1,
     })
   })
 
@@ -59,5 +70,36 @@ describe('spend ledger', () => {
     expect(row.costStatus).toBe('reconciled')
     expect(row.measuredCostUsd).toBe(0.011)
     expect(row.dashboardRatio).toBeCloseTo(1.1)
+  })
+
+  it('marks ratio-corrected historical estimates separately from measured rows', () => {
+    const row = reconcileSpendLedgerRowByRatio(
+      {
+        date: '2026-09-08',
+        source: 'backfill',
+        model: 'gpt-5-mini-2025-08-07',
+        rubricVersion: 5,
+        fieldsRequested: ['all'],
+        messagesClassified: 314,
+        inputTokens: 100,
+        cachedInputTokens: null,
+        outputTokens: 20,
+        totalTokens: 120,
+        estimatedCostUsd: 0.05,
+        measuredCostUsd: null,
+        costStatus: 'estimated_unreconciled',
+        dashboardRatio: null,
+        reconstructed: true,
+        pricing: {
+          checkedAt: '2026-09-08',
+          sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5-mini',
+        },
+      },
+      0.2,
+    )
+
+    expect(row.costStatus).toBe('reconciled_by_ratio')
+    expect(row.measuredCostUsd).toBe(0.01)
+    expect(row.dashboardRatio).toBe(0.2)
   })
 })

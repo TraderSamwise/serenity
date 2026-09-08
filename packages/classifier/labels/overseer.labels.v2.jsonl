@@ -1,0 +1,30 @@
+{"id":"explicit-warm-007","harmful":true,"primaryAxis":"sexual_explicit","severity":"medium","protectiveSignal":"none","notes":"Consensual explicit content. The old balanced verdict was a threshold guess; v2 records the text judgment only."}
+{"id":"explicit-hostile-015","harmful":true,"primaryAxis":"sexual_degrading","severity":"high","protectiveSignal":"none","notes":"Sexual degradation, not just sexual_explicit; NSFW ignores only explicit content."}
+{"id":"business-rude-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"business_inquiry","notes":"Rudeness does not remove the real business inquiry."}
+{"id":"harsh-legit-010","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Criticism of the argument, not the person."}
+{"id":"hostile-low-axis-014","harmful":true,"primaryAxis":"insult","severity":"high","protectiveSignal":"none","notes":"Backhanded sneer at the creator. V2 treats the old balanced verdict as a labelling-scheme artifact."}
+{"id":"minor-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Minor signal is descriptive and no harm axis is present."}
+{"id":"self-harm-disclosure-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"self_harm_disclosure","notes":"Sender's own crisis; protective signal should keep it visible."}
+{"id":"middle-band-012","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Critique of on-camera performance, not of the person."}
+{"id":"middle-band-032","harmful":true,"primaryAxis":"coercion","severity":"medium","protectiveSignal":"none","notes":"Implied reputational pressure with no named adverse act; real pressure but not severe."}
+{"id":"low-confidence-018","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Meta commentary about ambiguity; carries no harm itself."}
+{"id":"harsh-legit-004","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Substantive criticism of the video."}
+{"id":"hostile-low-axis-005","harmful":true,"primaryAxis":"insult","severity":"high","protectiveSignal":"none","notes":"Contempt through indirection aimed at the person. V2 re-judges the old balanced false positive as a real harm label."}
+{"id":"middle-band-021","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Criticism of a sponsor read that mentions suggestiveness; neither sexual nor a personal attack."}
+{"id":"low-confidence-023","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Observation about ambiguity, no harm signal."}
+{"id":"business-rude-011","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"business_inquiry","notes":"Real licensing enquiry despite clipped tone."}
+{"id":"explicit-warm-023","harmful":true,"primaryAxis":"sexual_explicit","severity":"high","protectiveSignal":"none","notes":"Admiring body comment is not an appearance attack, but the message names explicit adult content."}
+{"id":"explicit-hostile-001","harmful":true,"primaryAxis":"sexual_degrading","severity":"high","protectiveSignal":"none","notes":"Sexual degradation and insult both present; primary harm is sexual degradation."}
+{"id":"minor-007","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Self-declared minor asking a benign account question; minor signal itself is descriptive only."}
+{"id":"parasocial-007","harmful":true,"primaryAxis":"parasocial_intensity","severity":"high","protectiveSignal":"none","notes":"Entitlement to private access and escalating demand."}
+{"id":"threat-007","harmful":true,"primaryAxis":"threat","severity":"severe","protectiveSignal":"none","notes":"Veiled physical threat tied to a real-world event."}
+{"id":"coercion-006","harmful":true,"primaryAxis":"coercion","severity":"severe","protectiveSignal":"none","notes":"Doxxing threat with a deadline."}
+{"id":"sexual-violent-001","harmful":true,"primaryAxis":"sexual_violent","severity":"severe","protectiveSignal":"none","notes":"Eroticized non-consent."}
+{"id":"self-harm-directed-010","harmful":true,"primaryAxis":"self_harm_directed","severity":"severe","protectiveSignal":"none","notes":"Telling the recipient to kill themselves."}
+{"id":"transactional-004","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"transactional","notes":"Paying customer with an access problem."}
+{"id":"legal-004","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"legal_notice","notes":"Rights claim; validity is irrelevant to the protective signal."}
+{"id":"business-clear-004","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"business_inquiry","notes":"Plain partnership approach."}
+{"id":"near-miss-019","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Taste preference, not an attack on the body or the person."}
+{"id":"identity-appearance-004","harmful":true,"primaryAxis":"appearance_attack","severity":"high","protectiveSignal":"none","notes":"Attacks the face to dismiss the person."}
+{"id":"hostile-low-axis-twin-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Benign twin: bluntness aimed at the post's pacing rather than the person."}
+{"id":"middle-band-035","harmful":true,"primaryAxis":"coercion","severity":"medium","protectiveSignal":"none","notes":"Corrected under the concrete-act distinction: implied escalation with no named adverse act is middle-band pressure."}

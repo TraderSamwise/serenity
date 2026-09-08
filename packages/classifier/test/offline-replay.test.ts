@@ -3,10 +3,16 @@ import { describe, expect, it } from 'vitest'
 import { PRESETS, evaluate } from '@serenity/core'
 import { cacheKeyForText } from '../src/hash'
 import { loadClassificationCache, readCorpusJsonl } from '../src/cache'
+import { expectedVerdictsFromTextLabel, readJsonl } from '../src/labeling'
+import type { LabelContext, LabelVerdict, TextOnlyGoldenLabel } from '../src/labeling'
 
 const corpusPath = fileURLToPath(new URL('../fixtures/corpus.jsonl', import.meta.url))
 const cachePath = fileURLToPath(
   new URL('../fixtures/classification-cache.v1.json', import.meta.url),
+)
+const codexV2LabelsPath = fileURLToPath(new URL('../labels/codex.labels.v2.jsonl', import.meta.url))
+const overseerV2LabelsPath = fileURLToPath(
+  new URL('../labels/overseer.labels.v2.jsonl', import.meta.url),
 )
 
 describe('offline replay cache', () => {
@@ -47,4 +53,49 @@ describe('offline replay cache', () => {
       })
     }
   })
+
+  it('scores cached model verdicts against migrated v2 text labels', async () => {
+    const corpus = await readCorpusJsonl(corpusPath)
+    const cache = await loadClassificationCache(cachePath)
+    const labels = [
+      ...(await readJsonl<TextOnlyGoldenLabel>(codexV2LabelsPath)),
+      ...(await readJsonl<TextOnlyGoldenLabel>(overseerV2LabelsPath)),
+    ]
+    const textById = new Map(corpus.map((message) => [message.id, message.text]))
+    const mismatches: Array<{ id: string; context: LabelContext; expected: LabelVerdict; actual: LabelVerdict }> = []
+
+    for (const label of labels) {
+      const text = textById.get(label.id)
+      expect(text, label.id).toBeDefined()
+      const classification = cache.entries[cacheKeyForText(text!)]
+      expect(classification, label.id).toBeDefined()
+      const actual = actualVerdicts(classification!)
+      const expected = expectedVerdictsFromTextLabel(label)
+      for (const context of Object.keys(expected) as LabelContext[]) {
+        if (actual[context] !== expected[context]) {
+          mismatches.push({ id: label.id, context, expected: expected[context], actual: actual[context] })
+        }
+      }
+    }
+
+    expect(labels).toHaveLength(60)
+    expect(
+      mismatches.filter((mismatch) =>
+        ['hostile-low-axis-005', 'hostile-low-axis-014'].includes(mismatch.id),
+      ),
+    ).toEqual([])
+  })
 })
+
+function actualVerdicts(classification: Parameters<typeof evaluate>[0]): Record<LabelContext, LabelVerdict> {
+  return {
+    aggressive_standard: evaluate(classification, PRESETS.aggressive).hide ? 'hide' : 'show',
+    balanced_standard: evaluate(classification, PRESETS.balanced).hide ? 'hide' : 'show',
+    aggressive_nsfw: evaluate(classification, {
+      ...PRESETS.aggressive,
+      ignore: ['sexual_explicit'],
+    }).hide
+      ? 'hide'
+      : 'show',
+  }
+}

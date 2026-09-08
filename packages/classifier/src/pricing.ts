@@ -8,6 +8,7 @@ export const OPENAI_PRICING_SOURCE_URL = 'https://developers.openai.com/api/docs
 export const GPT_5_MINI_INPUT_USD_PER_MILLION = 0.25
 export const GPT_5_MINI_CACHED_INPUT_USD_PER_MILLION = 0.025
 export const GPT_5_MINI_OUTPUT_USD_PER_MILLION = 2.0
+export const GPT_5_MINI_MIN_CACHEABLE_PREFIX_TOKENS = 2_048
 
 export interface TokenUsageEstimate {
   inputTokens: number
@@ -38,7 +39,12 @@ export function estimateRunCost(items: readonly ClassificationProjectionItem[]):
 
     inputTokens += systemPromptTokens + userPromptTokens
     outputTokens += estimateOutputTokens(item.fields)
-    if (inputTokensByPrompt.has(promptKey)) cachedInputTokens += systemPromptTokens
+    if (
+      inputTokensByPrompt.has(promptKey) &&
+      systemPromptTokens >= GPT_5_MINI_MIN_CACHEABLE_PREFIX_TOKENS
+    ) {
+      cachedInputTokens += systemPromptTokens
+    }
     inputTokensByPrompt.set(promptKey, systemPromptTokens)
   }
 

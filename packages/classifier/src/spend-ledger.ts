@@ -13,7 +13,7 @@ export const SPEND_LEDGER_PATH = 'spend-ledger.v1.jsonl'
 
 export interface SpendLedgerRow {
   date: string
-  source: 'corpus_runner' | 'paid_test' | 'backfill'
+  source: 'corpus_runner' | 'paid_test' | 'price_probe' | 'backfill'
   model: string
   rubricVersion: number
   fieldsRequested: readonly RubricField[] | ['all'] | ['unknown']
@@ -24,7 +24,12 @@ export interface SpendLedgerRow {
   totalTokens: number | null
   estimatedCostUsd: number | null
   measuredCostUsd: number | null
-  costStatus: 'projected' | 'estimated_unreconciled' | 'dashboard_measured' | 'reconciled'
+  costStatus:
+    | 'projected'
+    | 'estimated_unreconciled'
+    | 'dashboard_measured'
+    | 'reconciled'
+    | 'reconciled_by_ratio'
   dashboardRatio: number | null
   reconstructed: boolean
   pricing: {
@@ -52,7 +57,7 @@ export async function appendSpendLedgerRow(
 }
 
 export function measuredSpendLedgerRow(options: {
-  source: 'corpus_runner' | 'paid_test'
+  source: 'corpus_runner' | 'paid_test' | 'price_probe'
   fieldsRequested: readonly RubricField[]
   messagesClassified: number
   usage: TokenUsageEstimate & { totalTokens: number }
@@ -89,4 +94,21 @@ export function reconcileSpendLedgerRow(
     costStatus: 'reconciled',
     dashboardRatio: row.estimatedCostUsd === null ? null : measuredCostUsd / row.estimatedCostUsd,
   }
+}
+
+export function reconcileSpendLedgerRowByRatio(
+  row: SpendLedgerRow,
+  dashboardRatio: number,
+): SpendLedgerRow {
+  return {
+    ...row,
+    measuredCostUsd:
+      row.estimatedCostUsd === null ? null : roundUsd(row.estimatedCostUsd * dashboardRatio),
+    costStatus: row.estimatedCostUsd === null ? row.costStatus : 'reconciled_by_ratio',
+    dashboardRatio: row.estimatedCostUsd === null ? row.dashboardRatio : dashboardRatio,
+  }
+}
+
+function roundUsd(value: number): number {
+  return Math.round(value * 10_000) / 10_000
 }

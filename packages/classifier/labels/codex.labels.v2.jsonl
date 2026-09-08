@@ -1,0 +1,30 @@
+{"id":"explicit-warm-007","harmful":true,"primaryAxis":"sexual_explicit","severity":"medium","protectiveSignal":"none","notes":"Consensual explicit content. The old balanced verdict was a threshold guess; v2 records the text judgment only."}
+{"id":"explicit-hostile-015","harmful":true,"primaryAxis":"sexual_degrading","severity":"high","protectiveSignal":"none","notes":"Sexual degradation aimed at the creator, not merely explicit content."}
+{"id":"business-rude-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"business_inquiry","notes":"Rude work criticism inside a real brand inquiry."}
+{"id":"harsh-legit-010","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Criticism of the argument/work, not personal abuse."}
+{"id":"hostile-low-axis-014","harmful":true,"primaryAxis":"insult","severity":"high","protectiveSignal":"none","notes":"Deniable contempt directed at the creator through sarcasm. V2 treats the old balanced disagreement as a labelling-scheme artifact."}
+{"id":"minor-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Minor signal is descriptive raw data, not a protective override or harm verdict by itself."}
+{"id":"self-harm-disclosure-003","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"self_harm_disclosure","notes":"Sender's own crisis; protective signal should keep it visible."}
+{"id":"middle-band-012","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Blunt production feedback, not appearance abuse."}
+{"id":"middle-band-032","harmful":true,"primaryAxis":"coercion","severity":"medium","protectiveSignal":"none","notes":"Veiled reputational pressure with no named adverse act; real pressure but not severe."}
+{"id":"low-confidence-018","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Meaning depends on missing relationship context, but the text itself carries no harm."}
+{"id":"threat-003","harmful":true,"primaryAxis":"threat","severity":"severe","protectiveSignal":"none","notes":"Concrete threat tied to the creator's studio."}
+{"id":"coercion-004","harmful":true,"primaryAxis":"coercion","severity":"severe","protectiveSignal":"none","notes":"Blackmail threat names an adverse act."}
+{"id":"sexual-violent-009","harmful":true,"primaryAxis":"sexual_violent","severity":"severe","protectiveSignal":"none","notes":"Sexualized non-consent request."}
+{"id":"self-harm-directed-001","harmful":true,"primaryAxis":"self_harm_directed","severity":"severe","protectiveSignal":"none","notes":"Direct instruction to self-harm."}
+{"id":"transactional-002","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"transactional","notes":"Payment/access support issue."}
+{"id":"legal-002","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"legal_notice","notes":"Legal notice should reach the creator."}
+{"id":"business-clear-002","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"business_inquiry","notes":"Straightforward sponsorship inquiry."}
+{"id":"spam-005","harmful":true,"primaryAxis":"spam_scam","severity":"high","protectiveSignal":"none","notes":"Credential phishing."}
+{"id":"parasocial-003","harmful":true,"primaryAxis":"parasocial_intensity","severity":"high","protectiveSignal":"none","notes":"Boundary violation with offline proximity."}
+{"id":"identity-appearance-007","harmful":true,"primaryAxis":"identity_attack","severity":"high","protectiveSignal":"none","notes":"Protected-class attack."}
+{"id":"explicit-hostile-024","harmful":true,"primaryAxis":"sexual_degrading","severity":"high","protectiveSignal":"none","notes":"Sexualized reduction of the creator's personhood."}
+{"id":"explicit-warm-020","harmful":true,"primaryAxis":"sexual_explicit","severity":"high","protectiveSignal":"none","notes":"Warm but clearly explicit adult-content reference."}
+{"id":"harsh-legit-024","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Substantive critique with a disclosure request."}
+{"id":"near-miss-006","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Benign request for clarification."}
+{"id":"minor-010","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"transactional","notes":"Self-declared minor with a cancellation/support need; minor signal itself is descriptive only."}
+{"id":"middle-band-025","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Disappointed community feedback, not an entitlement demand."}
+{"id":"low-confidence-014","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Meaning depends on unknown referent, but carries no harm signal."}
+{"id":"hostile-low-axis-twin-014","harmful":false,"primaryAxis":"none","severity":"none","protectiveSignal":"none","notes":"Critique of a rough draft, not contempt at the creator."}
+{"id":"identity-appearance-003","harmful":true,"primaryAxis":"appearance_attack","severity":"high","protectiveSignal":"none","notes":"Direct appearance attack."}
+{"id":"spam-012","harmful":true,"primaryAxis":"spam_scam","severity":"high","protectiveSignal":"none","notes":"Clone-page extortion/scam."}

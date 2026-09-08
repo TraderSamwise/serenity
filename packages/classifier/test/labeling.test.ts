@@ -5,6 +5,7 @@ import {
   assertScoreHiddenLabels,
   assertScoreHiddenQueue,
   assertTextOnlyGoldenLabels,
+  expectedVerdictsFromTextLabel,
   LABEL_REASON_CATEGORIES,
   readJsonl,
 } from '../src/labeling'
@@ -19,6 +20,10 @@ const overseerQueuePath = fileURLToPath(
 const codexLabelsPath = fileURLToPath(new URL('../labels/codex.labels.v1.jsonl', import.meta.url))
 const overseerLabelsPath = fileURLToPath(
   new URL('../labels/overseer.labels.v1.jsonl', import.meta.url),
+)
+const codexV2LabelsPath = fileURLToPath(new URL('../labels/codex.labels.v2.jsonl', import.meta.url))
+const overseerV2LabelsPath = fileURLToPath(
+  new URL('../labels/overseer.labels.v2.jsonl', import.meta.url),
 )
 
 describe('golden labelling harness', () => {
@@ -68,11 +73,43 @@ describe('golden labelling harness', () => {
         harmful: true,
         primaryAxis: 'coercion',
         severity: 'high',
+        protectiveSignal: 'none',
         notes: 'Human judgement of the text, not a threshold outcome.',
       },
-      { id: 'visible-001', harmful: false, primaryAxis: 'none', severity: 'none' },
+      {
+        id: 'visible-001',
+        harmful: false,
+        primaryAxis: 'none',
+        severity: 'none',
+        protectiveSignal: 'business_inquiry',
+      },
     ]
 
     assertTextOnlyGoldenLabels(labels)
+  })
+
+  it('validates migrated v2 text labels and derives preset verdicts', async () => {
+    const codexQueue = await readJsonl<LabelQueueEntry>(codexQueuePath)
+    const overseerQueue = await readJsonl<LabelQueueEntry>(overseerQueuePath)
+    const codexLabels = await readJsonl<TextOnlyGoldenLabel>(codexV2LabelsPath)
+    const overseerLabels = await readJsonl<TextOnlyGoldenLabel>(overseerV2LabelsPath)
+
+    expect(codexLabels).toHaveLength(30)
+    expect(overseerLabels).toHaveLength(30)
+    assertTextOnlyGoldenLabels(codexLabels)
+    assertTextOnlyGoldenLabels(overseerLabels)
+    assertLabelsMatchQueue(codexQueue, codexLabels)
+    assertLabelsMatchQueue(overseerQueue, overseerLabels)
+
+    expect(expectedVerdictsFromTextLabel(codexLabels[0]!)).toEqual({
+      aggressive_standard: 'hide',
+      balanced_standard: 'show',
+      aggressive_nsfw: 'show',
+    })
+    expect(expectedVerdictsFromTextLabel(overseerLabels[11]!)).toEqual({
+      aggressive_standard: 'hide',
+      balanced_standard: 'hide',
+      aggressive_nsfw: 'hide',
+    })
   })
 })
