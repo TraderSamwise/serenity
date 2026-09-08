@@ -197,6 +197,14 @@ demo.
 The global cache is keyed on `sha256(normalise(text))` and stores **only the
 hash and the vector**. Message plaintext is never written to the server.
 
+Proxy storage is Upstash Redis over its REST API: the global vector cache uses
+versioned keys carrying schema and rubric version plus the text hash, and each
+entry has a 90-day TTL. Vectors are write-once; TTL bounds obsolete cache
+growth after future schema/rubric churn while preserving normal cross-user
+dedupe. Per-install daily quota uses `@upstash/ratelimit`; global tier-2 and
+token ceilings use atomic Redis increments so concurrent proxy requests cannot
+read the same old counter and overspend.
+
 - Cross-user dedup still works: copypasta harassment and spam waves are
   classified once and served to everyone.
 - Plaintext lives only in the user's own browser, in their own local cache.
