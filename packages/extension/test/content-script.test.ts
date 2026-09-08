@@ -111,6 +111,83 @@ describe('X content script', () => {
     expect(reply.style.display).toBe('none')
     expect(reply.dataset.serenityHidden).toBe('verdict')
   })
+
+  it('retries a row when the worker message fails before a verdict arrives', async () => {
+    const dom = xStatusDom()
+    let attempts = 0
+    const runtime = recordingRuntime(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('worker unavailable')
+      return {
+        type: 'serenity.classifyMessagesResult',
+        optimisticHide: true,
+        verdicts: [{ stableId: 'x-status:222', hide: false }],
+      } satisfies ClassifyMessagesResponse
+    })
+    const script = new SerenityContentScript(
+      dom.window.document,
+      X_OWN_POST_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const reply = dom.window.document.querySelectorAll('article[data-testid="tweet"]')[1] as HTMLElement
+
+    await script.scan()
+    expect(reply.dataset.serenityHidden).toBe('awaiting-verdict')
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(2)
+    expect(reply.dataset.serenityHidden).toBe('shown')
+  })
+
+  it('applies cached hash verdicts when a row changed before the stable-id verdict lands', async () => {
+    const dom = xStatusDom()
+    const hash = await hashMessageText('Constructive but blunt reply')
+    let resolveResponse: (response: ClassifyMessagesResponse) => void = () => {}
+    const pending = new Promise<ClassifyMessagesResponse>((resolve) => {
+      resolveResponse = resolve
+    })
+    const runtime = recordingRuntime(async (message) => {
+      if (message.type === 'serenity.refilterCachedMessages') {
+        return {
+          type: 'serenity.refilterCachedMessagesResult',
+          verdicts: [{ hash, hide: false }],
+        } satisfies RefilterCachedMessagesResponse
+      }
+      return pending
+    })
+    const script = new SerenityContentScript(
+      dom.window.document,
+      X_OWN_POST_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    const scan = script.scan()
+    await waitFor(() => runtime.calls.length === 1)
+    const column = dom.window.document.querySelector('[data-testid="primaryColumn"]')!
+    column.innerHTML = `
+      <article data-testid="tweet">
+        <a href="/TraderSamwise/status/111"></a>
+        <div data-testid="tweetText">Creator post</div>
+      </article>
+      <article data-testid="tweet">
+        <a href="/replyAuthor/status/333"></a>
+        <div data-testid="tweetText">Constructive but blunt reply</div>
+      </article>`
+    void script.scan()
+    await waitFor(() => runtime.calls.length === 2)
+
+    resolveResponse({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [{ stableId: 'x-status:222', hide: false }],
+    })
+    await scan
+
+    const replacement = dom.window.document.querySelectorAll('article[data-testid="tweet"]')[1] as HTMLElement
+    expect(replacement.dataset.serenityHidden).toBe('shown')
+  })
 })
 
 describe('YouTube comments content script', () => {

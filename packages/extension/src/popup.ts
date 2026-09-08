@@ -6,14 +6,29 @@ import type {
   ServiceId,
 } from '@serenity/core'
 
-type RuntimeMessenger = Pick<typeof chrome.runtime, 'sendMessage'>
+interface RuntimeMessenger {
+  sendMessage(message: ExtensionRequest): Promise<PopupStateResponse>
+}
+type StorageListener = (changes: Record<string, chrome.storage.StorageChange>, areaName: string) => void
+interface StorageChangeSource {
+  onChanged: {
+    addListener(listener: StorageListener): void
+  }
+}
 
 export async function wirePopup(
   document: Document,
-  runtime: RuntimeMessenger = chrome.runtime,
+  runtime: RuntimeMessenger = chrome.runtime as RuntimeMessenger,
+  storage: StorageChangeSource = chrome.storage as StorageChangeSource,
 ): Promise<void> {
   const state = await sendMessage(runtime, { type: 'serenity.popupState' })
   renderPopupState(document, state)
+  storage.onChanged.addListener((_changes, areaName) => {
+    if (areaName !== 'local') return
+    void sendMessage(runtime, { type: 'serenity.popupState' }).then((nextState) => {
+      renderPopupState(document, nextState)
+    })
+  })
   selectElement(document, 'current-preset').addEventListener('change', async (event) => {
     const select = event.currentTarget as HTMLSelectElement
     renderPopupState(
@@ -105,7 +120,10 @@ function option(
 
 function selectElement(document: Document, id: string): HTMLSelectElement {
   const found = element(document, id)
-  if (!(found instanceof HTMLSelectElement)) throw new Error(`Missing select #${id}.`)
+  const view = document.defaultView
+  if (view === null || !(found instanceof view.HTMLSelectElement)) {
+    throw new Error(`Missing select #${id}.`)
+  }
   return found
 }
 

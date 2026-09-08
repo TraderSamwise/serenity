@@ -17,11 +17,12 @@ export interface ProxyConfig {
   globalTier2Ceiling: number
   globalTokenCeiling: number
   tier2Enabled: boolean
+  statsPath?: string
   port: number
 }
 
 export function loadProxyConfig(env = process.env): ProxyConfig {
-  return {
+  const config: ProxyConfig = {
     apiKey: required(env.SERENITY_OPENAI_API_KEY, 'SERENITY_OPENAI_API_KEY'),
     tokenSecret: required(env.SERENITY_PROXY_TOKEN_SECRET, 'SERENITY_PROXY_TOKEN_SECRET'),
     cachePath: env.SERENITY_PROXY_CACHE_PATH ?? resolve('data/global-cache.v1.json'),
@@ -32,10 +33,12 @@ export function loadProxyConfig(env = process.env): ProxyConfig {
     tier2Enabled: env.SERENITY_PROXY_TIER2_ENABLED !== '0',
     port: numberEnv(env.PORT, 8787),
   }
+  if (env.SERENITY_PROXY_STATS_PATH !== undefined) config.statsPath = env.SERENITY_PROXY_STATS_PATH
+  return config
 }
 
 export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
-  return createProxyApp({
+  const options = {
     tokenSecret: config.tokenSecret,
     deps: {
       cache: new FileGlobalHashCache(config.cachePath),
@@ -48,7 +51,10 @@ export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
       tier1: openAIModerationClient(config.apiKey),
       tier2: openAIClassifier(config.apiKey),
     },
-  })
+  }
+  return createProxyApp(
+    config.statsPath === undefined ? options : { ...options, statsPath: config.statsPath },
+  )
 }
 
 function required(value: string | undefined, name: string): string {

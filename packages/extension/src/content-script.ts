@@ -18,6 +18,7 @@ export interface RuntimeMessenger {
 export class SerenityContentScript {
   private readonly stableIdToHash = new Map<string, string>()
   private readonly sent = new Map<string, string>()
+  private readonly hashVerdicts = new Map<string, boolean>()
   private observer: MutationObserver | null = null
 
   constructor(
@@ -79,15 +80,25 @@ export class SerenityContentScript {
     if (unsent.length === 0) return
 
     for (const message of unsent) this.sent.set(message.stableId, message.hash)
-    const response = await this.runtime.sendMessage({
-      type: 'serenity.classifyMessages',
-      serviceId: this.definition.serviceId,
-      messages: unsent,
-    })
-    if (response.type !== 'serenity.classifyMessagesResult') return
-    for (const verdict of response.verdicts) {
-      this.applyStableIdVerdict(verdict.stableId, verdict.hide)
+    let response
+    try {
+      response = await this.runtime.sendMessage({
+        type: 'serenity.classifyMessages',
+        serviceId: this.definition.serviceId,
+        messages: unsent,
+      })
+    } catch {
+      for (const message of unsent) {
+        if (this.sent.get(message.stableId) === message.hash) this.sent.delete(message.stableId)
+      }
+      return
     }
+    if (response.type !== 'serenity.classifyMessagesResult') return
+    let missedVerdicts = 0
+    for (const verdict of response.verdicts) {
+      if (this.applyStableIdVerdict(verdict.stableId, verdict.hide) === 0) missedVerdicts += 1
+    }
+    if (missedVerdicts > 0) await this.refilter()
   }
 
   async refilter(): Promise<void> {
@@ -111,16 +122,26 @@ export class SerenityContentScript {
       hideRow(row, 'awaiting-verdict')
       const hash = await hashMessageText(text)
       this.stableIdToHash.set(stableId, hash)
+      const knownVerdict = this.hashVerdicts.get(hash)
+      if (knownVerdict !== undefined) {
+        applyVerdict(row, knownVerdict)
+        continue
+      }
       messages.push({ stableId, hash, text })
     }
     return messages
   }
 
-  private applyStableIdVerdict(stableId: string, hide: boolean): void {
-    for (const row of this.currentRowsForStableId(stableId)) applyVerdict(row, hide)
+  private applyStableIdVerdict(stableId: string, hide: boolean): number {
+    const hash = this.stableIdToHash.get(stableId)
+    if (hash !== undefined) this.hashVerdicts.set(hash, hide)
+    const rows = this.currentRowsForStableId(stableId)
+    for (const row of rows) applyVerdict(row, hide)
+    return rows.length
   }
 
   private applyHashVerdict(verdict: HashVerdict): void {
+    this.hashVerdicts.set(verdict.hash, verdict.hide)
     for (const [stableId, hash] of this.stableIdToHash) {
       if (hash === verdict.hash) this.applyStableIdVerdict(stableId, verdict.hide)
     }
@@ -143,6 +164,10 @@ export class SerenityContentScript {
     }
     for (const stableId of this.sent.keys()) {
       if (!currentStableIds.has(stableId)) this.sent.delete(stableId)
+    }
+    const currentHashes = new Set(this.stableIdToHash.values())
+    for (const hash of this.hashVerdicts.keys()) {
+      if (!currentHashes.has(hash)) this.hashVerdicts.delete(hash)
     }
   }
 

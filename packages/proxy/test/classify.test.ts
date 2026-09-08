@@ -53,6 +53,8 @@ describe('classifyBatch', () => {
     })
 
     expect(result.classifications).toEqual([cached])
+    expect(result.stats.globalCacheHits).toBe(1)
+    expect(result.stats.tier2Classifications).toBe(0)
     expect(tier1Calls).toBe(0)
     expect(tier2Calls).toBe(0)
   })
@@ -78,6 +80,8 @@ describe('classifyBatch', () => {
 
     expect(result.classifications[0]?.model).toBe(MODERATION_MODEL)
     expect(result.classifications[0]?.scores.insult).toBe(1)
+    expect(result.stats.tier1ShortCircuits).toBe(1)
+    expect(result.stats.tier2Classifications).toBe(0)
     expect(tier2Calls).toBe(0)
     expect(cache.entries.size).toBe(0)
   })
@@ -102,6 +106,8 @@ describe('classifyBatch', () => {
     })
 
     expect(result.classifications[0]?.scores.self_harm_directed).toBe(1)
+    expect(result.stats.localShortCircuits).toBe(1)
+    expect(result.stats.tier2Classifications).toBe(0)
     expect(tier1Calls).toBe(0)
     expect(cache.entries.size).toBe(0)
   })
@@ -176,6 +182,13 @@ describe('classifyBatch', () => {
     )
 
     expect(tier2Calls).toBe(1)
+    expect(result.stats.tier2Classifications).toBe(1)
+    expect(result.stats.usage).toEqual({
+      inputTokens: 10,
+      cachedInputTokens: 0,
+      outputTokens: 2,
+      totalTokens: 12,
+    })
     expect(calls).toEqual(['tier1', 'tier2'])
     expect(result.classifications[0]?.scores.sexual_explicit).toBe(0.2)
   })

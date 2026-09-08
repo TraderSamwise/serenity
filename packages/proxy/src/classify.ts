@@ -33,6 +33,22 @@ export interface ClassifyDependencies {
 
 export interface ClassifyBatchResult {
   classifications: Classification[]
+  stats: ClassifyBatchStats
+}
+
+export interface ClassifyBatchStats {
+  messages: number
+  globalCacheHits: number
+  localShortCircuits: number
+  tier1ShortCircuits: number
+  tier2Classifications: number
+  freeTierFallbacks: number
+  usage: {
+    inputTokens: number
+    cachedInputTokens: number
+    outputTokens: number
+    totalTokens: number
+  }
 }
 
 export function openAIModerationClient(apiKey: string): Tier1Client {
@@ -60,25 +76,31 @@ export async function classifyBatch(
   deps: ClassifyDependencies,
 ): Promise<ClassifyBatchResult> {
   const classifications: Classification[] = []
+  const stats = emptyClassifyBatchStats(messages.length)
 
   for (const text of messages) {
-    classifications.push(await classifyOne(text, installId, deps))
+    classifications.push(await classifyOne(text, installId, deps, stats))
   }
 
-  return { classifications }
+  return { classifications, stats }
 }
 
 async function classifyOne(
   text: string,
   installId: string,
   deps: ClassifyDependencies,
+  stats: ClassifyBatchStats,
 ): Promise<Classification> {
   const hash = textHash(text)
   const cached = await deps.cache.get(hash)
-  if (cached !== undefined) return cached
+  if (cached !== undefined) {
+    stats.globalCacheHits += 1
+    return cached
+  }
 
   const local = classifyWithLocalHeuristics(text)
   if (local !== null && hiddenByMostPermissiveHandling(local)) {
+    stats.localShortCircuits += 1
     return local
   }
 
@@ -88,6 +110,7 @@ async function classifyOne(
     tier1Classification !== null &&
     hiddenByMostPermissiveHandling(tier1Classification)
   ) {
+    stats.tier1ShortCircuits += 1
     return tier1Classification
   }
 
@@ -95,8 +118,31 @@ async function classifyOne(
     const tier2 = await deps.tier2.classify(text, installId)
     await deps.cache.set(hash, tier2.classification)
     await deps.quota.recordTier2(installId, tier2.usage.total_tokens)
+    stats.tier2Classifications += 1
+    stats.usage.inputTokens += tier2.usage.input_tokens
+    stats.usage.cachedInputTokens += tier2.usage.input_tokens_details?.cached_tokens ?? 0
+    stats.usage.outputTokens += tier2.usage.output_tokens
+    stats.usage.totalTokens += tier2.usage.total_tokens
     return tier2.classification
   }
 
+  stats.freeTierFallbacks += 1
   return cleanClassification()
+}
+
+function emptyClassifyBatchStats(messages: number): ClassifyBatchStats {
+  return {
+    messages,
+    globalCacheHits: 0,
+    localShortCircuits: 0,
+    tier1ShortCircuits: 0,
+    tier2Classifications: 0,
+    freeTierFallbacks: 0,
+    usage: {
+      inputTokens: 0,
+      cachedInputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+    },
+  }
 }

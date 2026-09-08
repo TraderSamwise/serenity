@@ -13,7 +13,7 @@ export const SPEND_LEDGER_PATH = 'spend-ledger.v1.jsonl'
 
 export interface SpendLedgerRow {
   date: string
-  source: 'corpus_runner' | 'paid_test' | 'price_probe' | 'backfill'
+  source: 'corpus_runner' | 'paid_test' | 'price_probe' | 'proxy_integration' | 'backfill'
   model: string
   rubricVersion: number
   fieldsRequested: readonly RubricField[] | ['all'] | ['unknown']
@@ -57,7 +57,7 @@ export async function appendSpendLedgerRow(
 }
 
 export function measuredSpendLedgerRow(options: {
-  source: 'corpus_runner' | 'paid_test' | 'price_probe'
+  source: 'corpus_runner' | 'paid_test' | 'price_probe' | 'proxy_integration'
   fieldsRequested: readonly RubricField[]
   messagesClassified: number
   usage: TokenUsageEstimate & { totalTokens: number }

@@ -1,5 +1,8 @@
 import { classifyBatch } from './classify'
+import { appendFile, mkdir } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { ClassifyDependencies } from './classify'
+import type { ClassifyBatchStats } from './classify'
 import { verifyInstallToken } from './token'
 
 export interface ProxyApp {
@@ -9,6 +12,7 @@ export interface ProxyApp {
 export interface ProxyAppOptions {
   tokenSecret: string
   deps: ClassifyDependencies
+  statsPath?: string
 }
 
 type ClassifyRequestBody = {
@@ -20,6 +24,7 @@ export function createProxyApp(options: ProxyAppOptions): ProxyApp {
     async fetch(request) {
       const url = new URL(request.url)
       if (url.pathname !== '/classify') return json({ error: 'Not found.' }, 404)
+      if (request.method === 'OPTIONS') return empty(204)
       if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
 
       const installId = authenticate(request, options.tokenSecret)
@@ -29,7 +34,9 @@ export function createProxyApp(options: ProxyAppOptions): ProxyApp {
       if (body instanceof Response) return body
 
       try {
-        return json(await classifyBatch(body.messages, installId, options.deps), 200)
+        const result = await classifyBatch(body.messages, installId, options.deps)
+        await logClassifyStats(result.stats, options.statsPath)
+        return json({ classifications: result.classifications }, 200)
       } catch {
         return json({ error: 'Classification failed.' }, 502)
       }
@@ -76,6 +83,33 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function json(body: unknown, status: number): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: corsHeaders({ 'content-type': 'application/json' }),
   })
+}
+
+async function logClassifyStats(
+  stats: ClassifyBatchStats,
+  statsPath: string | undefined,
+): Promise<void> {
+  console.log(`serenity proxy classify stats ${JSON.stringify(stats)}`)
+  if (statsPath === undefined) return
+
+  await mkdir(dirname(statsPath), { recursive: true })
+  await appendFile(statsPath, `${JSON.stringify(stats)}\n`, 'utf8')
+}
+
+function empty(status: number): Response {
+  return new Response(null, {
+    status,
+    headers: corsHeaders(),
+  })
+}
+
+function corsHeaders(headers: Record<string, string> = {}): HeadersInit {
+  return {
+    ...headers,
+    'access-control-allow-origin': '*',
+    'access-control-allow-headers': 'authorization, content-type',
+    'access-control-allow-methods': 'POST, OPTIONS',
+  }
 }
