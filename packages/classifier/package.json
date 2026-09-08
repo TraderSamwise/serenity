@@ -7,6 +7,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "build": "tsc --noEmit",
     "fixtures:write": "tsx src/write-corpus.ts",
     "classify": "node --env-file-if-exists=.env.local --import tsx src/run.ts",
     "price:probe": "node --env-file-if-exists=.env.local --import tsx src/price-probe.ts",

@@ -257,3 +257,28 @@ provider roll invalidates calibration and nothing tells you.
 5. X end-to-end, then YouTube, Instagram, Twitch, Fansly, OnlyFans — selectors
    only.
 6. Golden set + calibration check.
+
+## Popup design (deferred)
+
+The popup currently exists to prove the wiring, not to be used. It needs a real
+pass, but the constraints make it a harder design problem than it looks, so it
+is worth stating them before anyone reaches for a component library.
+
+What the popup may show: the current preset, a per-service override, and one
+number. That is the entire surface. It may not show what was hidden, a preview,
+a reason, a per-message badge, or a list — those are the product bar, not a
+styling choice, and every one of them is the review queue reappearing in a
+smaller box.
+
+So the design problem is making a deliberately tiny surface feel finished and
+calm rather than unfinished and thin. The user is someone who gave up on their
+inbox. The popup should feel like relief — quiet, settled, obviously working —
+and never like a security console reporting threats caught. A count rendered as
+a scoreboard turns suppressed abuse back into something to look at, which is the
+failure this product is designed to prevent.
+
+Open questions worth resolving with Sam rather than guessing: whether the count
+resets per session or accumulates, whether changing a preset should visibly
+re-filter in front of the user (it is instant and free, and it is the most
+convincing thing the product does), and whether there is any state worth showing
+when nothing has been hidden at all.

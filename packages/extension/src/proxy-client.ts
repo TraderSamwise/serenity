@@ -13,14 +13,15 @@ export interface ProxyClient {
 }
 
 export class HttpProxyClient implements ProxyClient {
-  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+  constructor(private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis) as typeof fetch) {}
 
   async classify(
     messages: readonly string[],
     token: string,
     proxyUrl: string,
   ): Promise<ProxyClassifyResponse> {
-    const response = await this.fetchImpl(new URL('/classify', proxyUrl), {
+    const fetchImpl = this.fetchImpl
+    const response = await fetchImpl(new URL('/classify', proxyUrl), {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,

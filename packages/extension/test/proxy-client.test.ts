@@ -29,4 +29,20 @@ describe('proxy client', () => {
       },
     ])
   })
+
+  it('calls fetch without rebinding native receiver context', async () => {
+    let receiver: unknown = null
+    const fetchImpl = async function (this: unknown) {
+      receiver = this
+      return new Response(JSON.stringify({ classifications: [classification()] }))
+    } as typeof fetch
+
+    await new HttpProxyClient(fetchImpl).classify(
+      ['Synthetic message'],
+      'signed-install-token',
+      'https://proxy.example/base',
+    )
+
+    expect(receiver).toBeUndefined()
+  })
 })

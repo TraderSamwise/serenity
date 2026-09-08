@@ -6,6 +6,7 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "yarn workspaces run build",
     "typecheck": "yarn workspaces run typecheck",
     "test": "yarn workspaces run test"
   }

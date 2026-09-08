@@ -46,7 +46,7 @@ export class ChromeSettingsStore implements SettingsStore {
   constructor(private readonly storage = chrome.storage.local) {}
 
   async get(): Promise<ExtensionSettings> {
-    const stored = await this.storage.get(DEFAULT_EXTENSION_SETTINGS)
+    const stored = await this.storage.get(null)
     return {
       ...DEFAULT_EXTENSION_SETTINGS,
       ...stored,
