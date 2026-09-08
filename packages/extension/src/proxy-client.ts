@@ -1,8 +1,4 @@
-import type { Classification } from '@serenity/core'
-
-export interface ProxyClassifyResponse {
-  classifications: Classification[]
-}
+import type { ProxyClassifyResponse } from '@serenity/core'
 
 export interface ProxyClient {
   classify(

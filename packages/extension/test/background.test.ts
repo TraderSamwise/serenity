@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HIDE_OPTIMISTICALLY } from '@serenity/core'
-import type { Classification, ServiceId } from '@serenity/core'
+import type { Classification, ProxyClassifyResult, ServiceId } from '@serenity/core'
 import {
   handleRuntimeMessage,
   handleClassifyMessages,
@@ -47,8 +47,8 @@ describe('background worker logic', () => {
     ])
     expect(response.optimisticHide).toBe(HIDE_OPTIMISTICALLY)
     expect(response.verdicts).toEqual([
-      { stableId: 'a', hide: true },
-      { stableId: 'b', hide: true },
+      { stableId: 'a', hide: true, status: 'classified' },
+      { stableId: 'b', hide: true, status: 'classified' },
     ])
     expect(JSON.stringify(response)).not.toContain('same bad text')
     expect(JSON.stringify(response)).not.toContain('insult')
@@ -103,8 +103,8 @@ describe('background worker logic', () => {
     ])
     expect(first.verdicts).toHaveLength(40)
     expect(second.verdicts).toHaveLength(10)
-    expect(first.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
-    expect(second.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
+    expect(first.verdicts.every((verdict) => verdict.hide === false && verdict.status === 'classified')).toBe(true)
+    expect(second.verdicts.every((verdict) => verdict.hide === false && verdict.status === 'classified')).toBe(true)
     },
   )
 
@@ -130,7 +130,39 @@ describe('background worker logic', () => {
 
     expect(response).toMatchObject({
       optimisticHide: true,
-      verdicts: [{ stableId: 'a', hide: true }],
+      verdicts: [{ stableId: 'a', hide: true, status: 'unclassified' }],
+    })
+  })
+
+  it('keeps proxy-unclassified quota fallbacks hidden, awaiting, and out of the local cache', async () => {
+    const cache = new MemoryLocalVectorCache()
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+      proxyToken: 'signed-token',
+    })
+    const hash = await hashMessageText('quota exhausted text')
+    const response = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'youtube_comments',
+        messages: [{ stableId: 'row-1', hash, text: 'quota exhausted text' }],
+      },
+      {
+        cache,
+        settingsStore,
+        proxy: recordingProxyResults([{ status: 'unclassified', reason: 'quota_exhausted' }]),
+      },
+    )
+
+    expect(response.verdicts).toEqual([
+      { stableId: 'row-1', hide: true, status: 'unclassified' },
+    ])
+    expect(await cache.get(hash)).toBeUndefined()
+    expect(await settingsStore.get()).toMatchObject({
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 1 },
     })
   })
 
@@ -243,6 +275,12 @@ describe('background worker logic', () => {
 })
 
 function recordingProxy(classifications: Classification[]) {
+  return recordingProxyResults(
+    classifications.map((item) => ({ status: 'classified', classification: item })),
+  )
+}
+
+function recordingProxyResults(results: ProxyClassifyResult[]) {
   const calls: Array<{
     messages: readonly string[]
     token: string
@@ -252,7 +290,7 @@ function recordingProxy(classifications: Classification[]) {
     calls,
     async classify(messages, token, proxyUrl) {
       calls.push({ messages, token, proxyUrl })
-      return { classifications }
+      return { results }
     },
   }
   return proxy

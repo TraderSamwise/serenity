@@ -87,11 +87,13 @@ async function appWithStatsPath(statsPath: string) {
 describe('POST /classify', () => {
   it('returns a vector per message and does not accept settings fields', async () => {
     const ok = await app().fetch(request({ messages: ['one', 'two'] }))
-    const body = await ok.json() as { classifications: unknown[] }
+    const body = await ok.json() as { results: unknown[] }
 
     expect(ok.status).toBe(200)
-    expect(body.classifications).toHaveLength(2)
+    expect(body.results).toHaveLength(2)
+    expect(body.results[0]).toMatchObject({ status: 'classified' })
     expect(body).not.toHaveProperty('stats')
+    expect(body).not.toHaveProperty('classifications')
 
     const rejected = await app().fetch(
       request({ messages: ['one'], preset: 'balanced' }),

@@ -4,7 +4,7 @@ import { classifyBatch } from '../src/classify'
 import type { Tier1Client, Tier2Classifier } from '../src/classify'
 import { MemoryQuotaStore } from '../src/quota'
 import type { QuotaOptions } from '../src/quota'
-import { FREE_TIER_MODEL, MODERATION_MODEL } from '../src/vector'
+import { MODERATION_MODEL } from '../src/vector'
 import { classification, moderation } from './helpers'
 
 const openQuota: QuotaOptions = {
@@ -52,7 +52,7 @@ describe('classifyBatch', () => {
       },
     })
 
-    expect(result.classifications).toEqual([cached])
+    expect(result.results).toEqual([{ status: 'classified', classification: cached }])
     expect(result.stats.globalCacheHits).toBe(1)
     expect(result.stats.tier2Classifications).toBe(0)
     expect(tier1Calls).toBe(0)
@@ -78,8 +78,13 @@ describe('classifyBatch', () => {
       },
     })
 
-    expect(result.classifications[0]?.model).toBe(MODERATION_MODEL)
-    expect(result.classifications[0]?.scores.insult).toBe(1)
+    expect(result.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        model: MODERATION_MODEL,
+        scores: { insult: 1 },
+      },
+    })
     expect(result.stats.tier1ShortCircuits).toBe(1)
     expect(result.stats.tier2Classifications).toBe(0)
     expect(tier2Calls).toBe(0)
@@ -105,7 +110,12 @@ describe('classifyBatch', () => {
       },
     })
 
-    expect(result.classifications[0]?.scores.self_harm_directed).toBe(1)
+    expect(result.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        scores: { self_harm_directed: 1 },
+      },
+    })
     expect(result.stats.localShortCircuits).toBe(1)
     expect(result.stats.tier2Classifications).toBe(0)
     expect(tier1Calls).toBe(0)
@@ -151,9 +161,19 @@ describe('classifyBatch', () => {
       deps,
     )
 
-    expect(first.classifications[0]?.model).toBe(MODERATION_MODEL)
-    expect(second.classifications[0]?.scores.business_inquiry).toBe(0.95)
-    expect(second.classifications[0]?.scores.insult).toBe(0.8)
+    expect(first.results[0]).toMatchObject({
+      status: 'classified',
+      classification: { model: MODERATION_MODEL },
+    })
+    expect(second.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        scores: {
+          business_inquiry: 0.95,
+          insult: 0.8,
+        },
+      },
+    })
     expect(tier2Calls).toBe(1)
     expect(cache.entries.size).toBe(1)
   })
@@ -190,7 +210,12 @@ describe('classifyBatch', () => {
       totalTokens: 12,
     })
     expect(calls).toEqual(['tier1', 'tier2'])
-    expect(result.classifications[0]?.scores.sexual_explicit).toBe(0.2)
+    expect(result.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        scores: { sexual_explicit: 0.2 },
+      },
+    })
   })
 
   it('keeps free moderation catches alive when the tier 2 kill switch is off', async () => {
@@ -217,21 +242,28 @@ describe('classifyBatch', () => {
       }),
     )
 
-    expect(result.classifications[0]?.model).toBe(MODERATION_MODEL)
-    expect(result.classifications[0]?.scores.insult).toBe(1)
+    expect(result.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        model: MODERATION_MODEL,
+        scores: { insult: 1 },
+      },
+    })
     expect(tier2Calls).toBe(0)
   })
 
   it('degrades to free tiers instead of erroring when the paid ceiling is hit', async () => {
     let tier2Calls = 0
+    const cache = new MemoryGlobalHashCache()
     const result = await classifyBatch(
       ['ordinary uncached text'],
       'install-1',
-      deps({
-        quota: {
+      {
+        cache,
+        quota: new MemoryQuotaStore({
           ...openQuota,
           globalTier2Ceiling: 0,
-        },
+        }),
         tier1: {
           async moderate() {
             return moderation({})
@@ -243,12 +275,17 @@ describe('classifyBatch', () => {
             return { classification: classification({ insult: 1 }), usage: usage() }
           },
         },
-      }),
+      },
     )
 
-    expect(result.classifications[0]?.model).toBe(FREE_TIER_MODEL)
-    expect(result.classifications[0]?.scores.insult).toBe(0)
+    expect(result.results).toEqual([
+      { status: 'unclassified', reason: 'quota_exhausted' },
+    ])
     expect(tier2Calls).toBe(0)
+    expect(result.stats.freeTierFallbacks).toBe(1)
+    expect(result.stats.tier2Classifications).toBe(0)
+    expect(result.stats.globalCacheHits).toBe(0)
+    expect(cache.entries.size).toBe(0)
   })
 
   it('applies per-install quota only to paid tier 2 classifications', async () => {
@@ -276,8 +313,16 @@ describe('classifyBatch', () => {
     )
 
     expect(tier2Calls).toBe(1)
-    expect(result.classifications[0]?.scores.insult).toBe(0.1)
-    expect(result.classifications[1]?.model).toBe(FREE_TIER_MODEL)
+    expect(result.results[0]).toMatchObject({
+      status: 'classified',
+      classification: {
+        scores: { insult: 0.1 },
+      },
+    })
+    expect(result.results[1]).toEqual({
+      status: 'unclassified',
+      reason: 'quota_exhausted',
+    })
   })
 })
 

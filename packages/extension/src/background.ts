@@ -88,18 +88,20 @@ export async function handleClassifyMessages(
     const texts = [...missingByHash.values()]
     const hashes = [...missingByHash.keys()]
     const response = await deps.proxy.classify(texts, settings.proxyToken, settings.proxyUrl)
-    if (response.classifications.length !== texts.length) {
-      throw new Error('Proxy returned the wrong number of classifications.')
+    if (response.results.length !== texts.length) {
+      throw new Error('Proxy returned the wrong number of results.')
     }
     await Promise.all(
-      texts.map((text, index) =>
-        deps.cache.put({
+      texts.map((text, index) => {
+        const result = response.results[index]!
+        if (result.status === 'unclassified') return Promise.resolve()
+        return deps.cache.put({
           hash: hashes[index]!,
           text,
           serviceId: request.serviceId,
-          classification: response.classifications[index]!,
-        }),
-      ),
+          classification: result.classification,
+        })
+      }),
     )
   }
   await Promise.all(
@@ -124,7 +126,10 @@ export async function handleClassifyMessages(
     await Promise.all(
       verdicts.map(async (verdict) => {
         const preparedItem = prepared.find((item) => item.message.stableId === verdict.stableId)
-        return verdict.hide && preparedItem !== undefined && (await deps.cache.get(preparedItem.hash)) === undefined
+        return (
+          verdict.status === 'unclassified' ||
+          (verdict.hide && preparedItem !== undefined && (await deps.cache.get(preparedItem.hash)) === undefined)
+        )
       }),
     )
   ).filter(Boolean).length
@@ -197,8 +202,8 @@ async function verdictForMessage(
   cache: LocalVectorCache,
 ): Promise<MessageVerdict> {
   const cached = await cache.get(hash)
-  if (cached === undefined) return { stableId, hide: true }
-  return { stableId, hide: evaluateRecord(cached, serviceId, settings) }
+  if (cached === undefined) return { stableId, hide: true, status: 'unclassified' }
+  return { stableId, hide: evaluateRecord(cached, serviceId, settings), status: 'classified' }
 }
 
 function evaluateRecord(

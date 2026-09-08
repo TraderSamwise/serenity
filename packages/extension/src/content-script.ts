@@ -3,6 +3,7 @@ import type {
   ClassifyMessagesResponse,
   ExtractedMessage,
   HashVerdict,
+  MessageVerdict,
   RefilterCachedMessagesResponse,
 } from '@serenity/core'
 import { hashMessageText } from './hash'
@@ -19,6 +20,7 @@ export class SerenityContentScript {
   private readonly stableIdToHash = new Map<string, string>()
   private readonly sent = new Map<string, string>()
   private readonly hashVerdicts = new Map<string, boolean>()
+  private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private observer: MutationObserver | null = null
 
   constructor(
@@ -26,6 +28,7 @@ export class SerenityContentScript {
     private readonly definition: ServiceSelectorDefinition,
     private readonly runtime: RuntimeMessenger,
     private readonly observerCtor: typeof MutationObserver = MutationObserver,
+    private readonly unclassifiedRetryMs = 60_000,
   ) {}
 
   start(): void {
@@ -36,6 +39,8 @@ export class SerenityContentScript {
   stop(): void {
     this.observer?.disconnect()
     this.observer = null
+    for (const timer of this.retryTimers.values()) clearTimeout(timer)
+    this.retryTimers.clear()
   }
 
   private observeContainer(): void {
@@ -96,6 +101,10 @@ export class SerenityContentScript {
     if (response.type !== 'serenity.classifyMessagesResult') return
     let missedVerdicts = 0
     for (const verdict of response.verdicts) {
+      if (verdict.status === 'unclassified') {
+        this.applyUnclassifiedVerdict(verdict)
+        continue
+      }
       if (this.applyStableIdVerdict(verdict.stableId, verdict.hide) === 0) missedVerdicts += 1
     }
     if (missedVerdicts > 0) await this.refilter()
@@ -140,6 +149,14 @@ export class SerenityContentScript {
     return rows.length
   }
 
+  private applyUnclassifiedVerdict(verdict: MessageVerdict): void {
+    for (const row of this.currentRowsForStableId(verdict.stableId)) {
+      hideRow(row, 'awaiting-verdict')
+    }
+    this.sent.delete(verdict.stableId)
+    this.scheduleUnclassifiedRetry(verdict.stableId)
+  }
+
   private applyHashVerdict(verdict: HashVerdict): void {
     this.hashVerdicts.set(verdict.hash, verdict.hide)
     for (const [stableId, hash] of this.stableIdToHash) {
@@ -165,10 +182,29 @@ export class SerenityContentScript {
     for (const stableId of this.sent.keys()) {
       if (!currentStableIds.has(stableId)) this.sent.delete(stableId)
     }
+    for (const stableId of this.retryTimers.keys()) {
+      if (!currentStableIds.has(stableId)) this.clearRetryTimer(stableId)
+    }
     const currentHashes = new Set(this.stableIdToHash.values())
     for (const hash of this.hashVerdicts.keys()) {
       if (!currentHashes.has(hash)) this.hashVerdicts.delete(hash)
     }
+  }
+
+  private scheduleUnclassifiedRetry(stableId: string): void {
+    if (this.retryTimers.has(stableId)) return
+    const timer = setTimeout(() => {
+      this.retryTimers.delete(stableId)
+      this.sent.delete(stableId)
+      void this.scan()
+    }, this.unclassifiedRetryMs)
+    this.retryTimers.set(stableId, timer)
+  }
+
+  private clearRetryTimer(stableId: string): void {
+    const timer = this.retryTimers.get(stableId)
+    if (timer !== undefined) clearTimeout(timer)
+    this.retryTimers.delete(stableId)
   }
 
   private targetDocuments(): Document[] {

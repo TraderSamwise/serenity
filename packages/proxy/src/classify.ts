@@ -1,4 +1,4 @@
-import type { Classification } from '@serenity/core'
+import type { Classification, ProxyClassifyResult } from '@serenity/core'
 import { classifyWithOpenAIResult } from '@serenity/classifier'
 import type { OpenAIUsage } from '@serenity/classifier'
 import { textHash } from './hash-cache'
@@ -11,7 +11,6 @@ import {
 } from './moderation'
 import type { Tier1ModerationResult } from './moderation'
 import type { QuotaStore } from './quota'
-import { cleanClassification } from './vector'
 
 export interface Tier1Client {
   moderate(text: string, installId: string): Promise<Tier1ModerationResult>
@@ -32,7 +31,7 @@ export interface ClassifyDependencies {
 }
 
 export interface ClassifyBatchResult {
-  classifications: Classification[]
+  results: ProxyClassifyResult[]
   stats: ClassifyBatchStats
 }
 
@@ -75,14 +74,14 @@ export async function classifyBatch(
   installId: string,
   deps: ClassifyDependencies,
 ): Promise<ClassifyBatchResult> {
-  const classifications: Classification[] = []
+  const results: ProxyClassifyResult[] = []
   const stats = emptyClassifyBatchStats(messages.length)
 
   for (const text of messages) {
-    classifications.push(await classifyOne(text, installId, deps, stats))
+    results.push(await classifyOne(text, installId, deps, stats))
   }
 
-  return { classifications, stats }
+  return { results, stats }
 }
 
 async function classifyOne(
@@ -90,18 +89,18 @@ async function classifyOne(
   installId: string,
   deps: ClassifyDependencies,
   stats: ClassifyBatchStats,
-): Promise<Classification> {
+): Promise<ProxyClassifyResult> {
   const hash = textHash(text)
   const cached = await deps.cache.get(hash)
   if (cached !== undefined) {
     stats.globalCacheHits += 1
-    return cached
+    return classified(cached)
   }
 
   const local = classifyWithLocalHeuristics(text)
   if (local !== null && hiddenByMostPermissiveHandling(local)) {
     stats.localShortCircuits += 1
-    return local
+    return classified(local)
   }
 
   const moderation = await deps.tier1.moderate(text, installId)
@@ -111,7 +110,7 @@ async function classifyOne(
     hiddenByMostPermissiveHandling(tier1Classification)
   ) {
     stats.tier1ShortCircuits += 1
-    return tier1Classification
+    return classified(tier1Classification)
   }
 
   if (await deps.quota.canUseTier2(installId)) {
@@ -123,11 +122,15 @@ async function classifyOne(
     stats.usage.cachedInputTokens += tier2.usage.input_tokens_details?.cached_tokens ?? 0
     stats.usage.outputTokens += tier2.usage.output_tokens
     stats.usage.totalTokens += tier2.usage.total_tokens
-    return tier2.classification
+    return classified(tier2.classification)
   }
 
   stats.freeTierFallbacks += 1
-  return cleanClassification()
+  return { status: 'unclassified', reason: 'quota_exhausted' }
+}
+
+function classified(classification: Classification): ProxyClassifyResult {
+  return { status: 'classified', classification }
 }
 
 function emptyClassifyBatchStats(messages: number): ClassifyBatchStats {

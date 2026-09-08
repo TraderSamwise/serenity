@@ -72,7 +72,7 @@ describe('X content script', () => {
     resolveResponse({
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
-      verdicts: [{ stableId: 'x-status:222', hide: false }],
+      verdicts: [{ stableId: 'x-status:222', hide: false, status: 'classified' }],
     })
     await scan
 
@@ -93,7 +93,7 @@ describe('X content script', () => {
       return {
         type: 'serenity.classifyMessagesResult',
         optimisticHide: true,
-        verdicts: [{ stableId: 'x-status:222', hide: false }],
+        verdicts: [{ stableId: 'x-status:222', hide: false, status: 'classified' }],
       } satisfies ClassifyMessagesResponse
     })
     const script = new SerenityContentScript(
@@ -121,7 +121,7 @@ describe('X content script', () => {
       return {
         type: 'serenity.classifyMessagesResult',
         optimisticHide: true,
-        verdicts: [{ stableId: 'x-status:222', hide: false }],
+        verdicts: [{ stableId: 'x-status:222', hide: false, status: 'classified' }],
       } satisfies ClassifyMessagesResponse
     })
     const script = new SerenityContentScript(
@@ -138,6 +138,44 @@ describe('X content script', () => {
 
     expect(runtime.calls).toHaveLength(2)
     expect(reply.dataset.serenityHidden).toBe('shown')
+  })
+
+  it('keeps unclassified rows hidden and retries them later', async () => {
+    const dom = xStatusDom()
+    let attempts = 0
+    const runtime = recordingRuntime(async () => {
+      attempts += 1
+      if (attempts === 1) {
+        return {
+          type: 'serenity.classifyMessagesResult',
+          optimisticHide: true,
+          verdicts: [{ stableId: 'x-status:222', hide: true, status: 'unclassified' }],
+        } satisfies ClassifyMessagesResponse
+      }
+      return {
+        type: 'serenity.classifyMessagesResult',
+        optimisticHide: true,
+        verdicts: [{ stableId: 'x-status:222', hide: false, status: 'classified' }],
+      } satisfies ClassifyMessagesResponse
+    })
+    const script = new SerenityContentScript(
+      dom.window.document,
+      X_OWN_POST_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+      0,
+    )
+    const reply = dom.window.document.querySelectorAll('article[data-testid="tweet"]')[1] as HTMLElement
+
+    await script.scan()
+    expect(reply.style.display).toBe('none')
+    expect(reply.dataset.serenityHidden).toBe('awaiting-verdict')
+
+    await waitFor(() => runtime.calls.length === 2)
+
+    expect(reply.style.display).toBe('')
+    expect(reply.dataset.serenityHidden).toBe('shown')
+    script.stop()
   })
 
   it('applies cached hash verdicts when a row changed before the stable-id verdict lands', async () => {
@@ -181,7 +219,7 @@ describe('X content script', () => {
     resolveResponse({
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
-      verdicts: [{ stableId: 'x-status:222', hide: false }],
+      verdicts: [{ stableId: 'x-status:222', hide: false, status: 'classified' }],
     })
     await scan
 
@@ -210,8 +248,8 @@ describe('YouTube comments content script', () => {
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
       verdicts: [
-        { stableId: 'youtube-comment:UgxParent.001', hide: false },
-        { stableId: 'youtube-comment:UgxReply.002', hide: true },
+        { stableId: 'youtube-comment:UgxParent.001', hide: false, status: 'classified' },
+        { stableId: 'youtube-comment:UgxReply.002', hide: true, status: 'classified' },
       ],
     }))
     const script = new SerenityContentScript(
@@ -254,7 +292,7 @@ describe('YouTube comments content script', () => {
     const runtime = recordingRuntime(async () => ({
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
-      verdicts: [{ stableId: 'youtube-comment:UgxLazy.003', hide: false }],
+      verdicts: [{ stableId: 'youtube-comment:UgxLazy.003', hide: false, status: 'classified' }],
     }))
     const script = new SerenityContentScript(
       dom.window.document,
@@ -300,8 +338,8 @@ describe('YouTube live chat content script', () => {
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
       verdicts: [
-        { stableId: 'youtube-live-chat:yt-live-1', hide: false },
-        { stableId: 'youtube-live-chat:yt-live-2', hide: true },
+        { stableId: 'youtube-live-chat:yt-live-1', hide: false, status: 'classified' },
+        { stableId: 'youtube-live-chat:yt-live-2', hide: true, status: 'classified' },
       ],
     }))
     const script = new SerenityContentScript(
@@ -360,6 +398,7 @@ describe('YouTube live chat content script', () => {
       verdicts: (message as ClassifyMessagesRequest).messages.map((item) => ({
         stableId: item.stableId,
         hide: false,
+        status: 'classified',
       })),
     }))
 
@@ -409,7 +448,7 @@ describe('YouTube live chat content script', () => {
     resolveResponse({
       type: 'serenity.classifyMessagesResult',
       optimisticHide: true,
-      verdicts: [{ stableId: 'youtube-live-chat:yt-live-1', hide: false }],
+      verdicts: [{ stableId: 'youtube-live-chat:yt-live-1', hide: false, status: 'classified' }],
     })
     await scan
 
@@ -439,10 +478,12 @@ describe('Twitch chat content script', () => {
         {
           stableId: 'twitch-message:11111111-1111-4111-8111-111111111111',
           hide: false,
+          status: 'classified',
         },
         {
           stableId: 'twitch-message:22222222-2222-4222-8222-222222222222',
           hide: true,
+          status: 'classified',
         },
       ],
     }))
@@ -513,6 +554,7 @@ describe('Twitch chat content script', () => {
         {
           stableId: 'twitch-message:11111111-1111-4111-8111-111111111111',
           hide: false,
+          status: 'classified',
         },
       ],
     })

@@ -1,5 +1,6 @@
 import type { ServiceId } from './services'
 import type { PresetName } from './presets'
+import type { Classification } from './axes'
 
 export const HIDE_OPTIMISTICALLY = true
 
@@ -12,6 +13,7 @@ export interface ExtractedMessage {
 export interface MessageVerdict {
   stableId: string
   hide: boolean
+  status: 'classified' | 'unclassified'
 }
 
 export interface HashVerdict {
@@ -30,6 +32,20 @@ export interface ClassifyMessagesResponse {
   type: 'serenity.classifyMessagesResult'
   optimisticHide: true
   verdicts: readonly MessageVerdict[]
+}
+
+export type ProxyClassifyResult =
+  | {
+      status: 'classified'
+      classification: Classification
+    }
+  | {
+      status: 'unclassified'
+      reason: 'quota_exhausted'
+    }
+
+export interface ProxyClassifyResponse {
+  results: readonly ProxyClassifyResult[]
 }
 
 export interface PopupStateRequest {

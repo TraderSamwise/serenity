@@ -102,6 +102,12 @@ make tier 1 unable to short-circuit anything. Otherwise it escalates to tier 2.
 Without this rule, loosening the slider later cannot un-hide anything, and the
 "policy change costs zero tokens" property breaks.
 
+When quota or the hard spend ceiling prevents tier 2 from running and tiers 0-1
+do not catch the message, the proxy returns an explicit **unclassified** result,
+not a synthetic clean vector. The extension keeps that message hidden and counts
+it as awaiting classification. An all-zero vector is a claim that the classifier
+measured a clean message; quota exhaustion is the absence of a measurement.
+
 ## Ruleset and presets
 
 Pure function, `evaluate(classification, ruleset) → verdict`, in
@@ -247,6 +253,14 @@ at read time and revised retroactively without re-classifying anything.
 
 Pin exact dated model snapshots. No `-latest` aliases anywhere: a silent
 provider roll invalidates calibration and nothing tells you.
+
+### Live observations
+
+First full-chain smoke, 2026-09-08, used a local proxy with the real OpenAI
+path and a public YouTube comment section. One comment was hidden by the
+aggressive YouTube-comments profile. It was an appearance/minor-framed remark
+about the video subject, not an obvious false positive. No real comment text is
+stored in the plan or logs.
 
 ## Build order
 

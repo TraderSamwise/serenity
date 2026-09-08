@@ -36,7 +36,7 @@ export function createProxyApp(options: ProxyAppOptions): ProxyApp {
       try {
         const result = await classifyBatch(body.messages, installId, options.deps)
         await logClassifyStats(result.stats, options.statsPath)
-        return json({ classifications: result.classifications }, 200)
+        return json({ results: result.results }, 200)
       } catch {
         return json({ error: 'Classification failed.' }, 502)
       }

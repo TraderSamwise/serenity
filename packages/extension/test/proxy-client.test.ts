@@ -12,7 +12,7 @@ describe('proxy client', () => {
         body: JSON.parse(String(init?.body)),
         authorization: headers.get('authorization'),
       })
-      return new Response(JSON.stringify({ classifications: [classification()] }))
+      return new Response(JSON.stringify({ results: [{ status: 'classified', classification: classification() }] }))
     }
 
     await new HttpProxyClient(fetchImpl).classify(
@@ -34,7 +34,7 @@ describe('proxy client', () => {
     let receiver: unknown = null
     const fetchImpl = async function (this: unknown) {
       receiver = this
-      return new Response(JSON.stringify({ classifications: [classification()] }))
+      return new Response(JSON.stringify({ results: [{ status: 'classified', classification: classification() }] }))
     } as typeof fetch
 
     await new HttpProxyClient(fetchImpl).classify(
