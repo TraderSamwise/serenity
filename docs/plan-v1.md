@@ -31,10 +31,10 @@ agency to read it for them. Their alternative is *nothing*. So:
 - Three aggression presets plus per-site overrides.
 - Hidden-count surfaced in the popup, nowhere else.
 
-For DM conversation lists, suppressing the preview text is the default design
-direction when the platform exposes a stable last-message id. Hiding the entire
-conversation row prevents the creator from knowing the conversation exists;
-showing the preview leaks exactly the summary the product promises not to show.
+For DM conversation lists, suppress the whole row when the preview fails. The
+row is the summary surface; showing it leaks the digest the product promises
+not to show. Identity comes from the previewed message id when the platform
+exposes one, otherwise the digest text hash, never the conversation id.
 
 **v1 does not ship**
 

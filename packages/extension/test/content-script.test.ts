@@ -669,7 +669,14 @@ describe('OnlyFans content script', () => {
 
     await script.scan()
 
-    expect(runtime.calls).toEqual([])
+    expect(runtime.calls).toHaveLength(1)
+    expect((runtime.calls[0] as ClassifyMessagesRequest).messages).toEqual([
+      {
+        stableId: 'onlyfans-message:11139463791366',
+        hash: await hashMessageText('Second preview fixture'),
+        text: 'Second preview fixture',
+      },
+    ])
     expect(row.style.display).toBe('none')
     expect(row.dataset.serenityHidden).toBe('awaiting-id')
   })
@@ -746,7 +753,7 @@ describe('OnlyFans content script', () => {
       dom.window.MutationObserver,
     )
 
-    expect(activeSelectorDefinition(dom.window.location.href)).toBe(ONLYFANS_DM_SELECTORS)
+    expect(activeSelectorDefinitions(dom.window.location.href)).toContain(ONLYFANS_DM_SELECTORS)
     expect(deriveStableId(rows[0]!, ONLYFANS_DM_SELECTORS, dom.window.location.href)).toBe(
       'onlyfans-message:11105260858545',
     )
@@ -937,6 +944,25 @@ function onlyFansCommentDom(): JSDOM {
   const rows = [...dom.window.document.querySelectorAll('.b-comments__item')]
   attachVueProps(rows[0]!, { comment: { id: 324902863 } })
   attachVueProps(rows[1]!, { comment: { id: 324875474 } })
+  return dom
+}
+
+function onlyFansDmListDom(): JSDOM {
+  const dom = new JSDOM(
+    `<!doctype html>
+      <div class="b-chats__list-dialogues">
+        <div class="b-chats__item" role="link">
+          <span class="b-chats__item__last-message__text">First preview fixture</span>
+        </div>
+        <div class="b-chats__item" role="link">
+          <span class="b-chats__item__media-label">Second preview fixture</span>
+        </div>
+      </div>`,
+    { url: 'https://onlyfans.com/my/chats/' },
+  )
+  const rows = [...dom.window.document.querySelectorAll('.b-chats__item')]
+  attachVueProps(rows[0]!, { chat: { lastMessage: 11139499990336 } })
+  attachVueProps(rows[1]!, { chat: { lastMessage: 11139463791366 } })
   return dom
 }
 
