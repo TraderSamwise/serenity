@@ -3,12 +3,16 @@
 Queues contain only `id` and `text`. Do not open the classification cache or
 model scores while labelling.
 
-Each label records expected product verdicts for:
+Labels should record only what a human can judge from text:
 
-- `aggressive_standard`
-- `balanced_standard`
-- `aggressive_nsfw`
+- whether the message is harmful to the recipient
+- the primary taxonomy axis
+- the human severity
 
-Use `reasonCategory` to mark the human reason: `severe`, `harm`, `protected`,
-`sentiment_middle_band`, `low_confidence`, or `visible`. Disagreements between
-labelers are rubric findings until resolved.
+Do not guess model scores or per-preset threshold outcomes while labelling.
+Threshold placement is a separate calibration pass over text labels and cached
+raw scores.
+
+Legacy v1 labels record expected product verdicts for `aggressive_standard`,
+`balanced_standard`, and `aggressive_nsfw`. Their active `reasonCategory`
+vocabulary is `severe`, `harm`, `protected`, or `visible`.

@@ -7,7 +7,7 @@
 {"id":"self-harm-disclosure-003","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"protected","notes":"Self-harm disclosure should remain visible for support/response."}
 {"id":"middle-band-012","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Blunt production feedback, not appearance abuse."}
 {"id":"middle-band-032","expected":{"aggressive_standard":"hide","balanced_standard":"show","aggressive_nsfw":"hide"},"reasonCategory":"harm","notes":"Veiled reputational pressure; aggressive should hide, balanced may allow."}
-{"id":"low-confidence-018","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"low_confidence","notes":"Text says the meaning depends on missing relationship context."}
+{"id":"low-confidence-018","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Text says the meaning depends on missing relationship context, but carries no harm."}
 {"id":"threat-003","expected":{"aggressive_standard":"hide","balanced_standard":"hide","aggressive_nsfw":"hide"},"reasonCategory":"severe","notes":"Concrete threat tied to the creator's studio."}
 {"id":"coercion-004","expected":{"aggressive_standard":"hide","balanced_standard":"hide","aggressive_nsfw":"hide"},"reasonCategory":"severe","notes":"Blackmail threat."}
 {"id":"sexual-violent-009","expected":{"aggressive_standard":"hide","balanced_standard":"hide","aggressive_nsfw":"hide"},"reasonCategory":"severe","notes":"Sexualized non-consent request; severe even on NSFW profile."}
@@ -24,7 +24,7 @@
 {"id":"near-miss-006","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Benign request for clarification."}
 {"id":"minor-010","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"protected","notes":"Minor signal plus cancellation/support need; should remain visible to resolve safely."}
 {"id":"middle-band-025","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Disappointed community feedback, not an entitlement demand."}
-{"id":"low-confidence-014","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"low_confidence","notes":"Meaning depends on unknown referent."}
+{"id":"low-confidence-014","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Meaning depends on unknown referent, but carries no harm."}
 {"id":"hostile-low-axis-twin-014","expected":{"aggressive_standard":"show","balanced_standard":"show","aggressive_nsfw":"show"},"reasonCategory":"visible","notes":"Critique of a rough draft, not contempt at the creator."}
 {"id":"identity-appearance-003","expected":{"aggressive_standard":"hide","balanced_standard":"hide","aggressive_nsfw":"hide"},"reasonCategory":"harm","notes":"Direct appearance attack."}
 {"id":"spam-012","expected":{"aggressive_standard":"hide","balanced_standard":"hide","aggressive_nsfw":"hide"},"reasonCategory":"harm","notes":"Extortion/scam."}

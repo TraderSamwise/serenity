@@ -1,4 +1,6 @@
 import { readFile } from 'node:fs/promises'
+import { HARM_AXES, OVERRIDE_AXES } from '@serenity/core'
+import type { HarmAxis, OverrideAxis } from '@serenity/core'
 
 export const LABEL_CONTEXTS = [
   'aggressive_standard',
@@ -10,14 +12,16 @@ export const LABEL_REASON_CATEGORIES = [
   'severe',
   'harm',
   'protected',
-  'sentiment_middle_band',
-  'low_confidence',
   'visible',
 ] as const
+
+export const HUMAN_HARM_SEVERITIES = ['none', 'low', 'medium', 'high', 'severe'] as const
 
 export type LabelContext = (typeof LABEL_CONTEXTS)[number]
 export type LabelReasonCategory = (typeof LABEL_REASON_CATEGORIES)[number]
 export type LabelVerdict = 'hide' | 'show'
+export type HumanHarmSeverity = (typeof HUMAN_HARM_SEVERITIES)[number]
+export type HumanLabelAxis = HarmAxis | OverrideAxis | 'none'
 
 export interface LabelQueueEntry {
   id: string
@@ -31,8 +35,17 @@ export interface GoldenLabel {
   notes?: string
 }
 
+export interface TextOnlyGoldenLabel {
+  id: string
+  harmful: boolean
+  primaryAxis: HumanLabelAxis
+  severity: HumanHarmSeverity
+  notes?: string
+}
+
 const QUEUE_KEYS = ['id', 'text'] as const
 const LABEL_KEYS = ['expected', 'id', 'notes', 'reasonCategory'] as const
+const TEXT_ONLY_LABEL_KEYS = ['harmful', 'id', 'notes', 'primaryAxis', 'severity'] as const
 
 export async function readJsonl<T>(path: string): Promise<T[]> {
   const contents = await readFile(path, 'utf8')
@@ -57,6 +70,23 @@ export function assertScoreHiddenLabels(labels: readonly GoldenLabel[]): void {
     assertOnlyKeys(label.expected, LABEL_CONTEXTS)
     if (!LABEL_REASON_CATEGORIES.includes(label.reasonCategory)) {
       throw new Error(`Invalid reason category for ${label.id}.`)
+    }
+  }
+}
+
+export function assertTextOnlyGoldenLabels(labels: readonly TextOnlyGoldenLabel[]): void {
+  const axes = new Set<HumanLabelAxis>([...HARM_AXES, ...OVERRIDE_AXES, 'none'])
+  for (const label of labels) {
+    assertOnlyKeys(label, TEXT_ONLY_LABEL_KEYS)
+    if (!axes.has(label.primaryAxis)) throw new Error(`Invalid primary axis for ${label.id}.`)
+    if (!HUMAN_HARM_SEVERITIES.includes(label.severity)) {
+      throw new Error(`Invalid harm severity for ${label.id}.`)
+    }
+    if (label.harmful && label.primaryAxis === 'none') {
+      throw new Error(`Harmful label ${label.id} must name an axis.`)
+    }
+    if (!label.harmful && label.severity !== 'none') {
+      throw new Error(`Visible label ${label.id} must use none severity.`)
     }
   }
 }
