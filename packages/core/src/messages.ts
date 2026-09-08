@@ -10,6 +10,11 @@ export interface ExtractedMessage {
   text: string
 }
 
+export interface InterceptedNetworkMessage {
+  stableId: string
+  text: string
+}
+
 export type MessageVerdict =
   | ClassifiedMessageVerdict
   | HiddenMessageVerdict
@@ -83,6 +88,21 @@ export interface RefilterCachedMessagesResponse {
   type: 'serenity.refilterCachedMessagesResult'
   /** Hash-keyed because content scripts map hashes back to current DOM stableIds. */
   verdicts: readonly HashVerdict[]
+}
+
+export interface NetworkInterceptionClassifyRequest {
+  source: 'serenity.main'
+  type: 'serenity.intercept.classify'
+  requestId: string
+  serviceId: ServiceId
+  messages: readonly InterceptedNetworkMessage[]
+}
+
+export interface NetworkInterceptionClassifyResponse {
+  source: 'serenity.isolated'
+  type: 'serenity.intercept.classifyResult'
+  requestId: string
+  hiddenStableIds: readonly string[]
 }
 
 export interface SetDefaultPresetRequest {
