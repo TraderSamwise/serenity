@@ -4,6 +4,7 @@ import { SCHEMA_VERSION } from '../../core/src/index'
 import type { Classification } from '../../core/src/index'
 import { cacheKeyForText } from './hash'
 import { CLASSIFIER_MODEL } from './schema'
+import { CLASSIFIER_RUBRIC_VERSION } from './prompt'
 
 export interface CorpusMessage {
   id: string
@@ -13,6 +14,7 @@ export interface CorpusMessage {
 
 export interface ClassificationCache {
   schemaVersion: number
+  rubricVersion: number
   model: string
   entries: Record<string, Classification>
 }
@@ -20,7 +22,12 @@ export interface ClassificationCache {
 export type ClassifyFn = (message: CorpusMessage) => Promise<Classification>
 
 export function emptyClassificationCache(model = CLASSIFIER_MODEL): ClassificationCache {
-  return { schemaVersion: SCHEMA_VERSION, model, entries: {} }
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    rubricVersion: CLASSIFIER_RUBRIC_VERSION,
+    model,
+    entries: {},
+  }
 }
 
 export async function readCorpusJsonl(path: string): Promise<CorpusMessage[]> {
@@ -33,7 +40,15 @@ export async function readCorpusJsonl(path: string): Promise<CorpusMessage[]> {
 
 export async function loadClassificationCache(path: string): Promise<ClassificationCache> {
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as ClassificationCache
+    const cache = JSON.parse(await readFile(path, 'utf8')) as ClassificationCache
+    if (
+      cache.schemaVersion !== SCHEMA_VERSION ||
+      cache.rubricVersion !== CLASSIFIER_RUBRIC_VERSION ||
+      cache.model !== CLASSIFIER_MODEL
+    ) {
+      return emptyClassificationCache()
+    }
+    return cache
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return emptyClassificationCache()

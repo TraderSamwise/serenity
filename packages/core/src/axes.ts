@@ -51,15 +51,15 @@ export const SCHEMA_VERSION = 1
 
 export const AXIS_DEFINITIONS: Record<ScoredAxis, string> = {
   insult:
-    'Score high when the message directly disparages, mocks, humiliates, or expresses contempt for the recipient as a person. Do not score ordinary disagreement, criticism of work, or negative feedback unless it becomes personal abuse.',
+    'Score high only when the message directly disparages, mocks, humiliates, or expresses contempt for the recipient as a person. Keep low for harsh criticism of the recipient\'s work, argument, pacing, production, business decision, or public claim when it does not insult the person. Low example: "Your argument was weak and needed real numbers." High example: "You are stupid and your work is worthless."',
   threat:
     'Score high when the message threatens, celebrates, or implies future physical harm, stalking, doxxing with danger, or violence against the recipient or people close to them. Include veiled threats when the likely target is the recipient.',
   coercion:
     'Score high when the sender pressures the recipient through blackmail, extortion, sextortion, exposure threats, reputation threats, or demands backed by punishment. Include threats to leak private material, report falsely, or mobilize harassment unless the recipient complies.',
   identity_attack:
-    'Score high when hostility targets protected or identity-linked traits such as race, ethnicity, caste, nationality, religion, disability, gender, sex, sexual orientation, or immigration status. Count slurs, dehumanizing identity claims, and attacks that use identity as the reason for contempt.',
+    'Score high only when hostility targets protected or identity-linked traits such as race, ethnicity, caste, nationality, religion, disability, gender, sex, sexual orientation, or immigration status. Keep low when identity is mentioned neutrally or when criticism targets work, conduct, or claims rather than identity. Low example: "Your travel guide ignored immigrant paperwork details." High example: "People from your country are all scammers."',
   appearance_attack:
-    "Score high when the message attacks the recipient's body, face, weight, age presentation, hygiene, attractiveness, disability presentation, or other visible traits. Do not score neutral descriptions or consensual compliments.",
+    'Score high only when the message attacks the recipient\'s body, face, weight, age presentation, hygiene, attractiveness, disability presentation, or other visible traits. Keep low for critique of lighting, styling, camera angle, wardrobe logistics, or image quality that is about the work rather than the person. Low example: "The lighting in the photo set flattened the colors." High example: "Your face ruins every photo."',
   sexual_explicit:
     'Score high for explicit sexual language, sexual propositions, descriptions of sex acts, nudity, arousal, fetish content, or commercial sexual content. This axis is descriptive only: warm, consensual, platform-appropriate sexual content still scores high.',
   sexual_degrading:

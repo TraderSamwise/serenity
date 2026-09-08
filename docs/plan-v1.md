@@ -112,7 +112,10 @@ Pure function, `evaluate(classification, ruleset) → verdict`, in
    message visible.
 3. Remaining harm axes against per-preset thresholds, skipping the site's
    `ignore` list.
-4. Sentiment floor.
+4. Sentiment floor only with corroboration: hide only when sentiment is at or
+   below the preset floor and at least one non-ignored harm axis is at or above
+   its own threshold multiplied by the preset's corroboration ratio. Tone alone
+   was hiding substantive criticism, so sentiment now needs a harm signal.
 5. Low confidence → the preset decides (aggressive presets hide).
 
 Presets: `nuclear`, `aggressive` (default), `balanced`, `off`. Site profiles
@@ -199,12 +202,11 @@ subscription, drop in on top without re-architecting anything.
 
 ## Cost
 
-Working figures — confirm against the live pricing page before relying on them.
-At roughly 200 input / 120 output tokens per classification on the cheapest
-structured-output model (~$0.05 / $0.40 per M):
+Measured fixture run, 2026-09-08, in the dedicated OpenAI `serenity` project:
+408 requests, 816,264 tokens, $0.05 billed by the OpenAI dashboard.
 
-- **~$0.06 per 1,000 messages** classified at tier 2.
-- A creator receiving 5,000 messages/month ≈ **$0.30/month**, before tier 0/1
+- **~$0.22 per 1,000 messages** classified at tier 2.
+- A creator receiving 5,000 messages/month ≈ **$1.10/month**, before tier 0/1
   deflection and before global cache hits.
 
 Cheap enough that day-1 free credits cost nothing meaningful, and cheap enough
@@ -227,6 +229,12 @@ open question: **does model discomfort leak sideways into `sentiment` on
 explicit input?** Measure the *variance* of sentiment within `sexual_explicit`
 high vs low — a shifted mean is correctable by calibration, a compressed spread
 is not, and only the second forces sentiment onto a separate call.
+
+Measured on the 2026-09-08 fixture cache with `gpt-5-mini-2025-08-07`:
+`sexual_explicit >= 0.5` had n=33, sentiment mean 0.127, variance 0.721;
+`sexual_explicit < 0.5` had n=191, sentiment mean -0.254, variance 0.354.
+The explicit set has wider spread, not compressed spread, so sentiment does not
+need its own call.
 
 Store raw scores, never post-threshold decisions, so calibration can be applied
 at read time and revised retroactively without re-classifying anything.

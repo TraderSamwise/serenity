@@ -16,6 +16,7 @@ export interface Ruleset {
   name: string
   thresholds: Readonly<Partial<Record<HarmAxis, number>>>
   sentimentFloor?: number
+  sentimentCorroborationRatio: number
   ignore?: readonly HarmAxis[]
   protectFloor: number
   confidenceFloor: number
@@ -24,7 +25,14 @@ export interface Ruleset {
 
 export type VerdictReason =
   | { kind: 'harm'; axis: HarmAxis; score: number; threshold: number }
-  | { kind: 'sentiment'; score: number; floor: number }
+  | {
+      kind: 'sentiment'
+      score: number
+      floor: number
+      axis: HarmAxis
+      axisScore: number
+      axisThreshold: number
+    }
   | { kind: 'low_confidence'; score: number; floor: number }
   | { kind: 'protected'; axis: OverrideAxis; score: number }
   | { kind: 'clean' }
@@ -47,6 +55,17 @@ function firstSevere(c: Classification, rules: Ruleset): HarmAxis | null {
   for (const axis of SEVERE_AXES) {
     const threshold = rules.thresholds[axis]
     if (threshold !== undefined && c.scores[axis] >= threshold) return axis
+  }
+  return null
+}
+
+function sentimentCorroboration(c: Classification, rules: Ruleset): HarmAxis | null {
+  for (const axis of HARM_AXES) {
+    if (rules.ignore?.includes(axis)) continue
+    const threshold = rules.thresholds[axis]
+    if (threshold !== undefined && c.scores[axis] >= threshold * rules.sentimentCorroborationRatio) {
+      return axis
+    }
   }
   return null
 }
@@ -87,11 +106,24 @@ export function evaluate(c: Classification, rules: Ruleset): Verdict {
     }
   }
 
-  if (rules.sentimentFloor !== undefined && c.sentiment <= rules.sentimentFloor) {
+  const sentimentAxis =
+    rules.sentimentFloor !== undefined && c.sentiment <= rules.sentimentFloor
+      ? sentimentCorroboration(c, rules)
+      : null
+
+  if (sentimentAxis !== null) {
+    const axisThreshold = rules.thresholds[sentimentAxis]!
     return {
       hide: true,
-      reason: { kind: 'sentiment', score: c.sentiment, floor: rules.sentimentFloor },
-      explain: 'negative sentiment below floor',
+      reason: {
+        kind: 'sentiment',
+        score: c.sentiment,
+        floor: rules.sentimentFloor!,
+        axis: sentimentAxis,
+        axisScore: c.scores[sentimentAxis],
+        axisThreshold,
+      },
+      explain: `negative sentiment corroborated by ${sentimentAxis}: ${AXIS_DEFINITIONS[sentimentAxis]}`,
     }
   }
 

@@ -21,7 +21,7 @@ const NUCLEAR_THRESHOLDS: Thresholds = {
 }
 
 const AGGRESSIVE_THRESHOLDS: Thresholds = {
-  insult: 0.65,
+  insult: 0.55,
   threat: 0.35,
   coercion: 0.35,
   identity_attack: 0.45,
@@ -54,6 +54,7 @@ export const PRESETS = {
     thresholds: NUCLEAR_THRESHOLDS,
     protectFloor: 0.65,
     sentimentFloor: -0.2,
+    sentimentCorroborationRatio: 0.5,
     confidenceFloor: 0.8,
     lowConfidence: 'hide',
   },
@@ -61,7 +62,8 @@ export const PRESETS = {
     name: 'aggressive',
     thresholds: AGGRESSIVE_THRESHOLDS,
     protectFloor: 0.6,
-    sentimentFloor: -0.55,
+    sentimentFloor: -0.45,
+    sentimentCorroborationRatio: 0.6,
     confidenceFloor: 0.65,
     lowConfidence: 'hide',
   },
@@ -70,6 +72,7 @@ export const PRESETS = {
     thresholds: BALANCED_THRESHOLDS,
     protectFloor: 0.55,
     sentimentFloor: -0.75,
+    sentimentCorroborationRatio: 0.8,
     confidenceFloor: 0.45,
     lowConfidence: 'show',
   },
@@ -77,6 +80,7 @@ export const PRESETS = {
     name: 'off',
     thresholds: {},
     protectFloor: 1.01,
+    sentimentCorroborationRatio: 1,
     confidenceFloor: 0,
     lowConfidence: 'show',
   },

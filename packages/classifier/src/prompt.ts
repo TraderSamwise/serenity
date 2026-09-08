@@ -1,5 +1,7 @@
 import { AXIS_DEFINITIONS, SCORED_AXES } from '../../core/src/index'
 
+export const CLASSIFIER_RUBRIC_VERSION = 2
+
 export function buildClassifierSystemPrompt(): string {
   const rubric = SCORED_AXES.map(
     (axis) => `- ${axis}: ${AXIS_DEFINITIONS[axis]}`,
