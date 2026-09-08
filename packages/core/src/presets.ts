@@ -21,7 +21,7 @@ const NUCLEAR_THRESHOLDS: Thresholds = {
 }
 
 const AGGRESSIVE_THRESHOLDS: Thresholds = {
-  insult: 0.55,
+  insult: 0.65,
   threat: 0.35,
   coercion: 0.35,
   identity_attack: 0.45,
@@ -61,7 +61,7 @@ export const PRESETS = {
     name: 'aggressive',
     thresholds: AGGRESSIVE_THRESHOLDS,
     protectFloor: 0.6,
-    sentimentFloor: -0.45,
+    sentimentFloor: -0.55,
     confidenceFloor: 0.65,
     lowConfidence: 'hide',
   },

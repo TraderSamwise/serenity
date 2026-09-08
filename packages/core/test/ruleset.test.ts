@@ -107,7 +107,7 @@ describe('evaluate', () => {
 
   it('same classification vector has different verdicts under different presets', () => {
     const classification = cleanClassification({
-      scores: { insult: 0.62 },
+      scores: { insult: 0.7 },
     })
 
     expect(evaluate(classification, PRESETS.aggressive).hide).toBe(true)

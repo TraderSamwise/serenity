@@ -20,7 +20,10 @@ agency to read it for them. Their alternative is *nothing*. So:
 
 **v1 ships**
 
-- Read-only DOM suppression on X, Instagram, YouTube comments, OnlyFans, Fansly.
+- Read-only DOM suppression on supported inbound surfaces.
+  - SFW: X DMs, comments on the creator's own X posts, YouTube comments,
+    YouTube live chat, Instagram DMs, Twitch chat.
+  - NSFW: OnlyFans DMs, Fansly DMs.
 - Classification via a hosted proxy holding the API key.
 - Three aggression presets plus per-site overrides.
 - Hidden-count surfaced in the popup, nowhere else.
@@ -34,8 +37,9 @@ agency to read it for them. Their alternative is *nothing*. So:
 - Any storage of message plaintext on the server.
 
 Deferring every write action is what keeps v1 small: no session handling, no
-platform automation, no ToS exposure, no per-platform action code. Each new site
-costs only selectors.
+platform automation, no ToS exposure, no per-platform action code. Today every
+surface is DOM hiding only. Future auto moderation, ban, block, and platform
+hide actions sit behind a separate default-off capability layer.
 
 ## Architecture
 
@@ -236,5 +240,6 @@ provider roll invalidates calibration and nothing tells you.
 2. Fixture corpus + the classifier prompt, run once, cached to disk.
 3. Proxy: single `/classify` endpoint, hash cache, install-ID tokens, spend cap.
 4. Extension shell: MV3 manifest, background worker, local cache, popup.
-5. X end-to-end, then YouTube, Instagram, Fansly, OnlyFans — selectors only.
+5. X end-to-end, then YouTube, Instagram, Twitch, Fansly, OnlyFans — selectors
+   only.
 6. Golden set + calibration check.
