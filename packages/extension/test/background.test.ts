@@ -227,6 +227,43 @@ describe('background worker logic', () => {
     expect(balanced).toEqual([{ hash: await hashMessageText('borderline insult'), hide: false }])
   })
 
+  it('applies the NSFW site profile in the extension path', async () => {
+    const cache = new MemoryLocalVectorCache()
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+      proxyToken: 'signed-token',
+    })
+    const explicitHash = await hashMessageText('explicit fixture')
+    const degradingHash = await hashMessageText('degrading fixture')
+
+    const response = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'onlyfans_comments',
+        messages: [
+          { stableId: 'explicit', hash: explicitHash, text: 'explicit fixture' },
+          { stableId: 'degrading', hash: degradingHash, text: 'degrading fixture' },
+        ],
+      },
+      {
+        cache,
+        settingsStore,
+        proxy: recordingProxy([
+          classification({ sexual_explicit: 0.95 }),
+          classification({ sexual_degrading: 0.95 }),
+        ]),
+      },
+    )
+
+    expect(response.verdicts).toEqual([
+      { stableId: 'explicit', hide: false, status: 'classified' },
+      { stableId: 'degrading', hide: true, status: 'classified' },
+    ])
+  })
+
   it('popup state exposes count and settings without hidden message details', async () => {
     const state = await popupState(
       new MemorySettingsStore({

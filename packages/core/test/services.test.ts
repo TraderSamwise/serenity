@@ -29,7 +29,7 @@ describe('services', () => {
   })
 
   it('maps nsfw services to the nsfw profile', () => {
-    expect(NSFW_SERVICES).toEqual(['onlyfans_dms', 'fansly_dms'])
+    expect(NSFW_SERVICES).toEqual(['onlyfans_dms', 'onlyfans_comments', 'fansly_dms'])
 
     for (const serviceId of NSFW_SERVICES) {
       expect(SERVICES[serviceId]).toMatchObject({

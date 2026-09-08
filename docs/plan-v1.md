@@ -23,7 +23,7 @@ agency to read it for them. Their alternative is *nothing*. So:
 - Read-only DOM suppression on supported inbound surfaces.
   - SFW: X DMs, comments on the creator's own X posts, YouTube comments,
     YouTube live chat, Instagram DMs, Twitch chat.
-  - NSFW: OnlyFans DMs, Fansly DMs.
+  - NSFW: OnlyFans DMs, OnlyFans comments, Fansly DMs.
 - Classification via a hosted proxy holding the API key.
 - Three aggression presets plus per-site overrides.
 - Hidden-count surfaced in the popup, nowhere else.

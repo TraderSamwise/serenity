@@ -263,6 +263,7 @@ export function deriveStableId(
   locationHref: string,
 ): string | null {
   if (definition.stableId.type === 'react-prop') return deriveReactPropStableId(row, definition)
+  if (definition.stableId.type === 'vue-prop') return deriveVuePropStableId(row, definition)
   return deriveAttributeStableId(row, definition)
 }
 
@@ -317,6 +318,22 @@ function deriveReactPropStableId(
   return null
 }
 
+function deriveVuePropStableId(
+  row: Element,
+  definition: ServiceSelectorDefinition,
+): string | null {
+  if (definition.stableId.type !== 'vue-prop') return null
+  const component = vueComponentFor(row)
+  const value =
+    readPath(vueProps(component, '_props'), definition.stableId.propPath) ??
+    readPath(vueProps(component, 'propsData'), definition.stableId.propPath)
+  if (typeof value !== 'string' && typeof value !== 'number') return null
+
+  const match = new RegExp(definition.stableId.pattern).exec(String(value))
+  if (match?.[1] !== undefined) return `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
+  return null
+}
+
 export function isExcludedLocationRow(
   row: Element,
   definition: ServiceSelectorDefinition,
@@ -349,6 +366,13 @@ type ReactFiber = {
   memoizedProps?: unknown
 }
 
+type VueComponent = {
+  _props?: unknown
+  $options?: {
+    propsData?: unknown
+  }
+}
+
 function reactFiberFor(row: Element): ReactFiber | null {
   const name = Object.getOwnPropertyNames(row).find((property) => property.startsWith('__reactFiber$'))
   return name === undefined ? null : ((row as unknown as Record<string, ReactFiber | undefined>)[name] ?? null)
@@ -360,6 +384,15 @@ function reactParentFiber(fiber: ReactFiber): ReactFiber | null {
 
 function reactProps(fiber: ReactFiber, key: 'memoizedProps' | 'pendingProps'): unknown {
   return fiber[key]
+}
+
+function vueComponentFor(row: Element): VueComponent | null {
+  return (row as unknown as { __vue__?: VueComponent }).__vue__ ?? null
+}
+
+function vueProps(component: VueComponent | null, key: '_props' | 'propsData'): unknown {
+  if (component === null) return undefined
+  return key === '_props' ? component._props : component.$options?.propsData
 }
 
 function readPath(source: unknown, path: readonly string[]): unknown {

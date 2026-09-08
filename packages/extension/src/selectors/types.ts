@@ -9,7 +9,7 @@ export interface ServiceSelectorDefinition {
   nestedRowSelectors?: readonly string[]
   textSelector: string
   textMode: 'first' | 'all'
-  stableId: AttributeStableIdRule | ReactPropStableIdRule
+  stableId: AttributeStableIdRule | ReactPropStableIdRule | VuePropStableIdRule
   excludeStableIdFromLocation?: LocationStableIdRule
 }
 
@@ -23,6 +23,13 @@ export interface AttributeStableIdRule {
 
 export interface ReactPropStableIdRule {
   type: 'react-prop'
+  propPath: readonly string[]
+  pattern: string
+  prefix: string
+}
+
+export interface VuePropStableIdRule {
+  type: 'vue-prop'
   propPath: readonly string[]
   pattern: string
   prefix: string

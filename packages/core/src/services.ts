@@ -9,6 +9,7 @@ export type ServiceId =
   | 'instagram_dms'
   | 'twitch_chat'
   | 'onlyfans_dms'
+  | 'onlyfans_comments'
   | 'fansly_dms'
 
 export type ServiceCategory = 'sfw' | 'nsfw'
@@ -35,6 +36,7 @@ export const SFW_SERVICES = [
 
 export const NSFW_SERVICES = [
   'onlyfans_dms',
+  'onlyfans_comments',
   'fansly_dms',
 ] as const satisfies readonly ServiceId[]
 
@@ -91,6 +93,14 @@ export const SERVICES = {
     id: 'onlyfans_dms',
     category: 'nsfw',
     label: 'OnlyFans DMs',
+    profile: 'nsfw',
+    v1Action: 'dom_hide',
+    futureActions: FUTURE_ACTIONS,
+  },
+  onlyfans_comments: {
+    id: 'onlyfans_comments',
+    category: 'nsfw',
+    label: 'OnlyFans comments',
     profile: 'nsfw',
     v1Action: 'dom_hide',
     futureActions: FUTURE_ACTIONS,

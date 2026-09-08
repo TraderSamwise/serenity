@@ -17,6 +17,8 @@ import {
 } from '../src/content-script'
 import { hashMessageText } from '../src/hash'
 import {
+  ONLYFANS_COMMENT_SELECTORS,
+  ONLYFANS_DM_SELECTORS,
   TWITCH_CHAT_SELECTORS,
   X_OWN_POST_COMMENT_SELECTORS,
   YOUTUBE_COMMENT_SELECTORS,
@@ -601,6 +603,101 @@ describe('Twitch chat content script', () => {
   })
 })
 
+describe('OnlyFans content script', () => {
+  it('models comments as a separate NSFW service with Vue comment ids', async () => {
+    const dom = onlyFansCommentDom()
+    const rows = [...dom.window.document.querySelectorAll('.b-comments__item')] as HTMLElement[]
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        { stableId: 'onlyfans-comment:324902863', hide: false, status: 'classified' },
+        { stableId: 'onlyfans-comment:324875474', hide: true, status: 'classified' },
+      ],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      ONLYFANS_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    expect(activeSelectorDefinition(dom.window.location.href)).toBe(ONLYFANS_COMMENT_SELECTORS)
+    expect(deriveStableId(rows[0]!, ONLYFANS_COMMENT_SELECTORS, dom.window.location.href)).toBe(
+      'onlyfans-comment:324902863',
+    )
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('onlyfans_comments')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'onlyfans-comment:324902863',
+        hash: await hashMessageText('First comment fixture'),
+        text: 'First comment fixture',
+      },
+      {
+        stableId: 'onlyfans-comment:324875474',
+        hash: await hashMessageText('Second comment fixture'),
+        text: 'Second comment fixture',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('shown')
+    expect(rows[1]!.dataset.serenityHidden).toBe('verdict')
+
+    const source = await readFile(contentScriptPath, 'utf8')
+    expect(source).not.toContain('onlyfans_comments')
+    expect(source).not.toContain('onlyfans_dms')
+    expect(source).not.toContain('ONLYFANS')
+  })
+
+  it('uses Vue message ids for DMs, excludes timeline rows, and fails closed without an id', async () => {
+    const dom = onlyFansDmDom()
+    const rows = [...dom.window.document.querySelectorAll('.b-chat__messages .b-chat__message')] as HTMLElement[]
+    const timelineRows = dom.window.document.querySelectorAll('.b-chat__message__system')
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [{ stableId: 'onlyfans-message:11105260858545', hide: false, status: 'classified' }],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      ONLYFANS_DM_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    expect(activeSelectorDefinition(dom.window.location.href)).toBe(ONLYFANS_DM_SELECTORS)
+    expect(deriveStableId(rows[0]!, ONLYFANS_DM_SELECTORS, dom.window.location.href)).toBe(
+      'onlyfans-message:11105260858545',
+    )
+
+    await script.scan()
+
+    expect(timelineRows).toHaveLength(1)
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('onlyfans_dms')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'onlyfans-message:11105260858545',
+        hash: await hashMessageText('DM fixture text'),
+        text: 'DM fixture text',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('shown')
+
+    delete (rows[0] as unknown as { __vue__?: unknown }).__vue__
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    expect(rows[0]!.style.display).toBe('none')
+    expect(rows[0]!.dataset.serenityHidden).toBe('awaiting-id')
+  })
+})
+
 function xStatusDom(): JSDOM {
   return new JSDOM(
     `<!doctype html>
@@ -747,6 +844,41 @@ function twitchChatDom(): JSDOM {
   return dom
 }
 
+function onlyFansCommentDom(): JSDOM {
+  const dom = new JSDOM(
+    `<!doctype html>
+      <div class="b-comments__list">
+        <div class="b-comments__item m-break-word g-position-relative">
+          <div class="b-comments__item-text">First comment fixture</div>
+        </div>
+        <div class="b-comments__item m-break-word g-position-relative">
+          <div class="b-comments__item-text">Second comment fixture</div>
+        </div>
+      </div>`,
+    { url: 'https://onlyfans.com/2728816652/bella.lee' },
+  )
+  const rows = [...dom.window.document.querySelectorAll('.b-comments__item')]
+  attachVueProps(rows[0]!, { comment: { id: 324902863 } })
+  attachVueProps(rows[1]!, { comment: { id: 324875474 } })
+  return dom
+}
+
+function onlyFansDmDom(): JSDOM {
+  const dom = new JSDOM(
+    `<!doctype html>
+      <div class="b-chat__messages">
+        <div class="b-chat__message__system m-timeline">Timeline row</div>
+        <div class="b-chat__message m-text">
+          <div class="b-chat__message__text-holder">DM fixture text</div>
+        </div>
+      </div>`,
+    { url: 'https://onlyfans.com/my/chats/chat/564580593/' },
+  )
+  const row = dom.window.document.querySelector('.b-chat__message')!
+  attachVueProps(row, { message: { id: 11105260858545 } })
+  return dom
+}
+
 function attachReactMessageId(row: Element, id: string): void {
   Object.defineProperty(row, '__reactFiber$test', {
     value: {
@@ -756,6 +888,16 @@ function attachReactMessageId(row: Element, id: string): void {
           message: { id },
         },
       },
+    },
+  })
+}
+
+function attachVueProps(row: Element, props: Record<string, unknown>): void {
+  Object.defineProperty(row, '__vue__', {
+    configurable: true,
+    value: {
+      _props: props,
+      $options: { propsData: props },
     },
   })
 }
