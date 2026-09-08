@@ -252,3 +252,63 @@
 {"id":"identity-appearance-008","text":"You are too old to dress like that online.","tags":["identity_attack","appearance_attack"]}
 {"id":"identity-appearance-009","text":"That disability is your whole personality now.","tags":["identity_attack","appearance_attack"]}
 {"id":"identity-appearance-010","text":"Your face ruins every product you try to promote.","tags":["identity_attack","appearance_attack"]}
+{"id":"middle-band-001","text":"This was almost useful, which made the wasted parts more annoying.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-002","text":"You keep sounding lost when you explain this, and it gets tiring.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-003","text":"The confidence is impressive considering how little of this landed.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-004","text":"I wanted to like the stream, but you made that harder every minute.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-005","text":"That was a rough watch; you came across completely unprepared.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-006","text":"You somehow turned a simple answer into a painful lecture.","tags":["middle_band_probe","negative_tone","insult_near_threshold"]}
+{"id":"middle-band-007","text":"The camera angle was not kind to you today, and it distracted from the point.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-008","text":"That outfit made the sponsor segment feel awkward instead of polished.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-009","text":"The lighting really emphasized how tired you looked through the whole video.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-010","text":"Your styling lately makes the content look cheaper than it should.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-011","text":"The makeup choice pulled attention away from the review in a bad way.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-012","text":"You looked uncomfortable on camera, and it made the whole pitch feel off.","tags":["middle_band_probe","negative_tone","appearance_near_threshold"]}
+{"id":"middle-band-013","text":"That take sounded like the worst stereotype people expect from your crowd.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-014","text":"You leaned hard into the lazy version of what people say about your scene.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-015","text":"This had the smug tone people associate with creators from your circle.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-016","text":"The whole bit played into every tired joke about your audience.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-017","text":"You made your background sound like an excuse instead of perspective.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-018","text":"That answer had the exact blind spot people criticize in your community.","tags":["middle_band_probe","negative_tone","identity_near_threshold"]}
+{"id":"middle-band-019","text":"The thirst angle is getting old and makes the whole post feel cheap.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-020","text":"That caption pushed the flirt joke far enough to feel uncomfortable.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-021","text":"You did not need to make the sponsor read sound that suggestive.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-022","text":"The innuendo was heavy enough that the actual point got buried.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-023","text":"That clip felt less playful and more like you were selling the wrong thing.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-024","text":"The comments got creepy because you kept feeding the bit.","tags":["middle_band_probe","negative_tone","sexual_near_threshold"]}
+{"id":"middle-band-025","text":"You used to notice the people who were here first; now it feels transactional.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-026","text":"It is disappointing how easy it was for you to forget the regulars.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-027","text":"You ask us to show up, then act like the connection never mattered.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-028","text":"The distance you keep putting between us makes the whole community feel fake.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-029","text":"I supported every launch, so watching you ignore the familiar names stings.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-030","text":"You talk about community until someone expects you to remember them.","tags":["middle_band_probe","negative_tone","parasocial_near_threshold"]}
+{"id":"middle-band-031","text":"You might want to answer this before people start assuming the worst.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"middle-band-032","text":"Leaving this unresolved will make it easier for everyone to believe the thread.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"middle-band-033","text":"I would clear this up quickly if you do not want screenshots becoming the story.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"middle-band-034","text":"You can ignore the warning, but the timing will look bad when people ask.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"middle-band-035","text":"A reply now would keep this from getting uglier in places you cannot moderate.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"middle-band-036","text":"It would be smarter to handle this privately before the public version gets messy.","tags":["middle_band_probe","negative_tone","coercion_near_threshold"]}
+{"id":"low-confidence-001","text":"The second thing you did after the call was exactly what I expected.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-002","text":"After what happened in the other chat, this lands differently.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-003","text":"You know why that answer sounded different this time.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-004","text":"That was not what we agreed, but maybe you had a reason.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-005","text":"The old version of this message would have been kinder.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-006","text":"I saw the thing you removed, and this does not fix it.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-007","text":"If the context is what it looks like, that was a choice.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-008","text":"Someone should probably tell you how that read on our side.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-009","text":"The way you phrased it makes sense only if the rumor is true.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-010","text":"I cannot tell whether that was aimed at us or just badly timed.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-011","text":"If you meant the private part, that was colder than it needed to be.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-012","text":"There is probably a harmless explanation, but the pattern is not great.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-013","text":"Without the deleted post, this seems fine; with it, not so much.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-014","text":"I hope that was about the sponsor and not the person everyone thinks it was.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-015","text":"That reply depends on a joke I do not think everyone knows.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-016","text":"The screenshot changes the meaning, but I cannot tell if it is real.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-017","text":"If this is about last night, it is uglier than it sounds.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-018","text":"I do not know the relationship here, so this could be banter or pressure.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-019","text":"That name means one thing in your group and another thing everywhere else.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-020","text":"Depending on who you meant by them, this is either nothing or very pointed.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-021","text":"The tone reads friendly if you know each other and sharp if you do not.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-022","text":"I cannot judge this without knowing whether the nickname is welcome.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-023","text":"If that emoji was ironic, the whole message flips.","tags":["low_confidence_probe","ambiguous_context"]}
+{"id":"low-confidence-024","text":"This sounds supportive unless the earlier message was about the same person.","tags":["low_confidence_probe","ambiguous_context"]}

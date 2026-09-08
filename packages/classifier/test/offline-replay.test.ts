@@ -20,6 +20,19 @@ describe('offline replay cache', () => {
     }
   })
 
+  it('stores raw scores rather than post-threshold verdicts', async () => {
+    const cache = await loadClassificationCache(cachePath)
+    const [entry] = Object.values(cache.entries)
+
+    expect(entry).toBeDefined()
+    expect(entry).toHaveProperty('scores')
+    expect(entry).toHaveProperty('sentiment')
+    expect(entry).toHaveProperty('targeted')
+    expect(entry).toHaveProperty('confidence')
+    expect(entry).not.toHaveProperty('hide')
+    expect(entry).not.toHaveProperty('reason')
+  })
+
   it('keeps near-miss benign messages visible under the aggressive preset', async () => {
     const corpus = await readCorpusJsonl(corpusPath)
     const cache = await loadClassificationCache(cachePath)
