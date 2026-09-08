@@ -1,4 +1,4 @@
-import { AXIS_DEFINITIONS, SCORED_AXES } from '../../core/src/index'
+import { AXIS_DEFINITIONS, SCORED_AXES } from '@serenity/core'
 
 export const CLASSIFIER_RUBRIC_VERSION = 4
 

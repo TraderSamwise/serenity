@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCHEMA_VERSION } from '../../core/src/index'
+import { SCHEMA_VERSION } from '@serenity/core'
 import { classifyWithOpenAI } from '../src/openai'
 import { cacheKeyForText, sha256Hex } from '../src/hash'
 import { CLASSIFIER_JSON_SCHEMA, CLASSIFIER_MODEL } from '../src/schema'

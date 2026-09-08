@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AXIS_DEFINITIONS, SCORED_AXES } from '../../core/src/index'
+import { AXIS_DEFINITIONS, SCORED_AXES } from '@serenity/core'
 import { CLASSIFIER_JSON_SCHEMA, CLASSIFIER_OUTPUT_FIELDS } from '../src/schema'
 
 describe('classifier schema', () => {

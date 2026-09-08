@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, describe, expect, it } from 'vitest'
-import { HARM_AXES, PROTECTIVE_AXES, SCHEMA_VERSION } from '../../core/src/index'
-import type { Classification, ScoredAxis } from '../../core/src/index'
+import { HARM_AXES, PROTECTIVE_AXES, SCHEMA_VERSION } from '@serenity/core'
+import type { Classification, ScoredAxis } from '@serenity/core'
 import {
   classifyMissingCorpusEntries,
   emptyClassificationCache,

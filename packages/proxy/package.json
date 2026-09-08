@@ -1,5 +1,5 @@
 {
-  "name": "@serenity/classifier",
+  "name": "@serenity/proxy",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,12 +7,12 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "fixtures:write": "tsx src/write-corpus.ts",
-    "classify": "node --env-file-if-exists=.env.local --import tsx src/run.ts",
+    "dev": "node --env-file-if-exists=.env.local --import tsx src/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@serenity/classifier": "0.1.0",
     "@serenity/core": "0.1.0"
   },
   "devDependencies": {

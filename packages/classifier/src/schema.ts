@@ -2,8 +2,8 @@ import {
   AXIS_DEFINITIONS,
   SCHEMA_VERSION,
   SCORED_AXES,
-} from '../../core/src/index'
-import type { Classification, ScoredAxis } from '../../core/src/index'
+} from '@serenity/core'
+import type { Classification, ScoredAxis } from '@serenity/core'
 
 export const CLASSIFIER_MODEL = 'gpt-5-mini-2025-08-07'
 

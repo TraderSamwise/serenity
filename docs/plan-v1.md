@@ -96,9 +96,11 @@ the *same vector*, with no second inference call.
 | 2. Cheap structured model | paid | Fills the full axis vector. |
 
 Tier 1 may only *short-circuit to hidden* when the message would also be hidden
-at the most permissive preset. Otherwise it escalates to tier 2. Without this
-rule, loosening the slider later cannot un-hide anything, and the "policy change
-costs zero tokens" property breaks.
+at the most permissive active preset, `balanced`, across supported site
+profiles. `off` is the escape hatch and hides nothing, so using it here would
+make tier 1 unable to short-circuit anything. Otherwise it escalates to tier 2.
+Without this rule, loosening the slider later cannot un-hide anything, and the
+"policy change costs zero tokens" property breaks.
 
 ## Ruleset and presets
 

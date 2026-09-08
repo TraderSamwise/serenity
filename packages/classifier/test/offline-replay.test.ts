@@ -1,12 +1,18 @@
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { PRESETS, evaluate } from '../../core/src/index'
+import { PRESETS, evaluate } from '@serenity/core'
 import { cacheKeyForText } from '../src/hash'
 import { loadClassificationCache, readCorpusJsonl } from '../src/cache'
 
+const corpusPath = fileURLToPath(new URL('../fixtures/corpus.jsonl', import.meta.url))
+const cachePath = fileURLToPath(
+  new URL('../fixtures/classification-cache.v1.json', import.meta.url),
+)
+
 describe('offline replay cache', () => {
   it('contains a vector for every committed corpus message', async () => {
-    const corpus = await readCorpusJsonl('fixtures/corpus.jsonl')
-    const cache = await loadClassificationCache('fixtures/classification-cache.v1.json')
+    const corpus = await readCorpusJsonl(corpusPath)
+    const cache = await loadClassificationCache(cachePath)
 
     expect(Object.keys(cache.entries)).toHaveLength(corpus.length)
     for (const message of corpus) {
@@ -15,8 +21,8 @@ describe('offline replay cache', () => {
   })
 
   it('keeps near-miss benign messages visible under the aggressive preset', async () => {
-    const corpus = await readCorpusJsonl('fixtures/corpus.jsonl')
-    const cache = await loadClassificationCache('fixtures/classification-cache.v1.json')
+    const corpus = await readCorpusJsonl(corpusPath)
+    const cache = await loadClassificationCache(cachePath)
     const nearMisses = corpus.filter((message) => message.tags.includes('near_miss_benign'))
 
     expect(nearMisses.length).toBeGreaterThan(0)

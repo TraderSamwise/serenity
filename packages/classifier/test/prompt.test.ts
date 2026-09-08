@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AXIS_DEFINITIONS, SCORED_AXES } from '../../core/src/index'
+import { AXIS_DEFINITIONS, SCORED_AXES } from '@serenity/core'
 import { buildClassifierSystemPrompt, buildClassifierUserPrompt } from '../src/prompt'
 
 describe('classifier prompt', () => {
