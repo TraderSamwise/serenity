@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { HIDE_OPTIMISTICALLY } from '@serenity/core'
 import type { Classification, ProxyClassifyResult, ServiceId } from '@serenity/core'
 import {
   handleRuntimeMessage,
@@ -31,8 +30,8 @@ describe('background worker logic', () => {
         type: 'serenity.classifyMessages',
         serviceId: 'x_dms',
         messages: [
-          { stableId: 'a', hash, text: 'same bad text' },
-          { stableId: 'b', hash, text: 'same bad text' },
+          { hash, text: 'same bad text' },
+          { hash, text: 'same bad text' },
         ],
       },
       { cache, settingsStore, proxy },
@@ -45,10 +44,9 @@ describe('background worker logic', () => {
         proxyUrl: 'https://proxy.example',
       },
     ])
-    expect(response.optimisticHide).toBe(HIDE_OPTIMISTICALLY)
     expect(response.verdicts).toEqual([
-      { stableId: 'a', hide: true, status: 'classified' },
-      { stableId: 'b', hide: true, status: 'classified' },
+      { hash, hide: true, status: 'classified' },
+      { hash, hide: true, status: 'classified' },
     ])
     expect(JSON.stringify(response)).not.toContain('same bad text')
     expect(JSON.stringify(response)).not.toContain('insult')
@@ -73,8 +71,7 @@ describe('background worker logic', () => {
       {
         type: 'serenity.classifyMessages',
         serviceId,
-        messages: Array.from({ length: 40 }, (_, index) => ({
-          stableId: `${serviceId}:${index}`,
+        messages: Array.from({ length: 40 }, () => ({
           hash,
           text,
         })),
@@ -85,8 +82,7 @@ describe('background worker logic', () => {
       {
         type: 'serenity.classifyMessages',
         serviceId,
-        messages: Array.from({ length: 10 }, (_, index) => ({
-          stableId: `${serviceId}:repeat-${index}`,
+        messages: Array.from({ length: 10 }, () => ({
           hash,
           text,
         })),
@@ -115,7 +111,6 @@ describe('background worker logic', () => {
         serviceId: 'x_dms',
         messages: [
           {
-            stableId: 'a',
             hash: await hashMessageText('unclassified text'),
             text: 'unclassified text',
           },
@@ -129,8 +124,7 @@ describe('background worker logic', () => {
     )
 
     expect(response).toMatchObject({
-      optimisticHide: true,
-      verdicts: [{ stableId: 'a', hide: true, status: 'unclassified', reason: 'no_proxy_token' }],
+      verdicts: [{ hide: true, status: 'unclassified', reason: 'no_proxy_token' }],
     })
   })
 
@@ -150,14 +144,14 @@ describe('background worker logic', () => {
       {
         type: 'serenity.classifyMessages',
         serviceId: 'youtube_comments',
-        messages: [{ stableId: 'local-hit', hash, text: 'kys' }],
+        messages: [{ hash, text: 'kys' }],
       },
       { cache, settingsStore, proxy },
     )
 
     expect(response.verdicts).toEqual([
       {
-        stableId: 'local-hit',
+        hash,
         hide: true,
         status: 'hidden',
         reason: 'tier0_local_heuristic',
@@ -184,7 +178,7 @@ describe('background worker logic', () => {
       {
         type: 'serenity.classifyMessages',
         serviceId: 'youtube_comments',
-        messages: [{ stableId: 'row-1', hash, text: 'quota exhausted text' }],
+        messages: [{ hash, text: 'quota exhausted text' }],
       },
       {
         cache,
@@ -194,7 +188,7 @@ describe('background worker logic', () => {
     )
 
     expect(response.verdicts).toEqual([
-      { stableId: 'row-1', hide: true, status: 'unclassified', reason: 'quota_exhausted' },
+      { hash, hide: true, status: 'unclassified', reason: 'quota_exhausted' },
     ])
     expect(await cache.get(hash)).toBeUndefined()
     expect(await settingsStore.get()).toMatchObject({
@@ -244,8 +238,8 @@ describe('background worker logic', () => {
         type: 'serenity.classifyMessages',
         serviceId: 'onlyfans_comments',
         messages: [
-          { stableId: 'explicit', hash: explicitHash, text: 'explicit fixture' },
-          { stableId: 'degrading', hash: degradingHash, text: 'degrading fixture' },
+          { hash: explicitHash, text: 'explicit fixture' },
+          { hash: degradingHash, text: 'degrading fixture' },
         ],
       },
       {
@@ -259,8 +253,8 @@ describe('background worker logic', () => {
     )
 
     expect(response.verdicts).toEqual([
-      { stableId: 'explicit', hide: false, status: 'classified' },
-      { stableId: 'degrading', hide: true, status: 'classified' },
+      { hash: explicitHash, hide: false, status: 'classified' },
+      { hash: degradingHash, hide: true, status: 'classified' },
     ])
   })
 
@@ -327,7 +321,6 @@ describe('background worker logic', () => {
         serviceId: 'x_dms',
         messages: [
           {
-            stableId: 'pending',
             hash: await hashMessageText('pending text'),
             text: 'pending text',
           },

@@ -1,5 +1,4 @@
 import {
-  HIDE_OPTIMISTICALLY,
   SERVICES,
   SITE_PROFILES,
   classifyWithLocalHeuristics,
@@ -91,7 +90,7 @@ export async function handleClassifyMessages(
         return (
           local !== null &&
           hiddenByMostPermissiveHandling(local) &&
-          evaluateClassification(local, item.message.stableId, request.serviceId, settings).hide
+          evaluateClassification(local, item.hash, request.serviceId, settings).hide
         )
       })
       .map((item) => item.hash),
@@ -143,7 +142,6 @@ export async function handleClassifyMessages(
   const verdicts = await Promise.all(
     prepared.map(async ({ message, hash }) =>
       verdictForMessage(
-        message.stableId,
         hash,
         request.serviceId,
         settings,
@@ -167,7 +165,6 @@ export async function handleClassifyMessages(
 
   return {
     type: 'serenity.classifyMessagesResult',
-    optimisticHide: HIDE_OPTIMISTICALLY,
     verdicts,
   }
 }
@@ -225,7 +222,6 @@ export function createChromeBackgroundDependencies(): BackgroundDependencies {
 }
 
 async function verdictForMessage(
-  stableId: string,
   hash: string,
   serviceId: ServiceId,
   settings: ExtensionSettings,
@@ -238,11 +234,11 @@ async function verdictForMessage(
 ): Promise<MessageVerdict> {
   const cached = await cache.get(hash)
   if (cached !== undefined) {
-    return evaluateClassification(cached.classification, stableId, serviceId, settings)
+    return evaluateClassification(cached.classification, hash, serviceId, settings)
   }
   if (localHiddenHashes.has(hash)) {
     return {
-      stableId,
+      hash,
       hide: true,
       status: 'hidden',
       reason: 'tier0_local_heuristic',
@@ -250,10 +246,10 @@ async function verdictForMessage(
   }
   const proxyResult = proxyResultsByHash.get(hash)
   if (proxyResult?.status === 'hidden') {
-    return { stableId, hide: true, status: 'hidden', reason: proxyResult.reason }
+    return { hash, hide: true, status: 'hidden', reason: proxyResult.reason }
   }
   return {
-    stableId,
+    hash,
     hide: true,
     status: 'unclassified',
     reason: settings.proxyToken === undefined ? 'no_proxy_token' : 'quota_exhausted',
@@ -262,12 +258,12 @@ async function verdictForMessage(
 
 function evaluateClassification(
   classification: LocalCacheRecord['classification'],
-  stableId: string,
+  hash: string,
   serviceId: ServiceId,
   settings: ExtensionSettings,
 ): MessageVerdict {
   return {
-    stableId,
+    hash,
     hide: evaluateForService(classification, serviceId, settings),
     status: 'classified',
   }

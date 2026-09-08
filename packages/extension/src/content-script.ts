@@ -2,26 +2,19 @@ import type {
   ClassifyMessagesRequest,
   ClassifyMessagesResponse,
   ExtractedMessage,
-  HashVerdict,
-  MessageVerdict,
-  RefilterCachedMessagesResponse,
 } from '@serenity/core'
 import { hashMessageText } from './hash'
 import { SERVICE_SELECTOR_DEFINITIONS } from './selectors'
 import type { ServiceSelectorDefinition } from './selectors'
 
 export interface RuntimeMessenger {
-  sendMessage(message: ClassifyMessagesRequest | { type: 'serenity.refilterCachedMessages' }): Promise<
-    ClassifyMessagesResponse | RefilterCachedMessagesResponse
-  >
+  sendMessage(message: ClassifyMessagesRequest): Promise<ClassifyMessagesResponse>
 }
 
 export class SerenityContentScript {
-  private readonly stableIdToHash = new Map<string, string>()
-  private readonly sent = new Map<string, string>()
-  private readonly hashVerdicts = new Map<string, boolean>()
-  private readonly retryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private processed = new WeakSet<Element>()
   private observer: MutationObserver | null = null
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly document: Document,
@@ -32,6 +25,7 @@ export class SerenityContentScript {
   ) {}
 
   start(): void {
+    this.injectDefaultHideStyles()
     void this.scan()
     this.observeContainer()
   }
@@ -39,8 +33,66 @@ export class SerenityContentScript {
   stop(): void {
     this.observer?.disconnect()
     this.observer = null
-    for (const timer of this.retryTimers.values()) clearTimeout(timer)
-    this.retryTimers.clear()
+    if (this.retryTimer !== null) clearTimeout(this.retryTimer)
+    this.retryTimer = null
+  }
+
+  async scan(): Promise<void> {
+    this.injectDefaultHideStyles()
+    const extracted = await this.extract(collectRows(this.targetDocuments(), this.definition))
+    if (extracted.length === 0) return
+
+    let response
+    try {
+      response = await this.runtime.sendMessage({
+        type: 'serenity.classifyMessages',
+        serviceId: this.definition.serviceId,
+        messages: extracted.map(({ hash, text }) => ({ hash, text })),
+      })
+    } catch {
+      this.scheduleRetry()
+      return
+    }
+    if (response.type !== 'serenity.classifyMessagesResult') {
+      this.scheduleRetry()
+      return
+    }
+
+    const verdictsByHash = new Map(response.verdicts.map((verdict) => [verdict.hash, verdict]))
+    let sawUnclassified = false
+    for (const { row, hash } of extracted) {
+      const verdict = verdictsByHash.get(hash)
+      if (verdict === undefined || verdict.status === 'unclassified') {
+        sawUnclassified = true
+        continue
+      }
+      applyVerdict(row, verdict.hide)
+      this.processed.add(row)
+    }
+    if (sawUnclassified) this.scheduleRetry()
+  }
+
+  async refilter(): Promise<void> {
+    this.processed = new WeakSet<Element>()
+    for (const row of collectRows(this.targetDocuments(), this.definition)) {
+      delete (row as HTMLElement).dataset.serenityHidden
+    }
+    await this.scan()
+  }
+
+  private async extract(rows: readonly Element[]): Promise<ExtractedRow[]> {
+    const messages: ExtractedRow[] = []
+    for (const row of rows) {
+      if (this.processed.has(row)) continue
+      const text = extractText(row)
+      if (text === null) {
+        applyVerdict(row, false)
+        this.processed.add(row)
+        continue
+      }
+      messages.push({ row, hash: await hashMessageText(text), text })
+    }
+    return messages
   }
 
   private observeContainer(): void {
@@ -77,137 +129,12 @@ export class SerenityContentScript {
     this.observer.observe(root, { childList: true, subtree: true })
   }
 
-  async scan(): Promise<void> {
-    const rows = collectRows(this.targetDocuments(), this.definition)
-    this.pruneKnownRows(rows)
-    const extracted = await this.extract(rows)
-    const unsent = extracted.filter((message) => this.sent.get(message.stableId) !== message.hash)
-    if (unsent.length === 0) return
-
-    for (const message of unsent) this.sent.set(message.stableId, message.hash)
-    let response
-    try {
-      response = await this.runtime.sendMessage({
-        type: 'serenity.classifyMessages',
-        serviceId: this.definition.serviceId,
-        messages: unsent,
-      })
-    } catch {
-      for (const message of unsent) {
-        if (this.sent.get(message.stableId) === message.hash) this.sent.delete(message.stableId)
-      }
-      return
-    }
-    if (response.type !== 'serenity.classifyMessagesResult') return
-    let missedVerdicts = 0
-    for (const verdict of response.verdicts) {
-      if (verdict.status === 'unclassified') {
-        this.applyUnclassifiedVerdict(verdict)
-        continue
-      }
-      if (this.applyStableIdVerdict(verdict.stableId, verdict.hide) === 0) missedVerdicts += 1
-    }
-    if (missedVerdicts > 0) await this.refilter()
-  }
-
-  async refilter(): Promise<void> {
-    this.hashVerdicts.clear()
-    this.sent.clear()
-    const response = await this.runtime.sendMessage({ type: 'serenity.refilterCachedMessages' })
-    if (response.type !== 'serenity.refilterCachedMessagesResult') return
-    for (const verdict of response.verdicts) this.applyHashVerdict(verdict)
-    await this.scan()
-  }
-
-  private async extract(rows: readonly Element[]): Promise<ExtractedMessage[]> {
-    const messages: ExtractedMessage[] = []
-    for (const row of rows) {
-      if (isExcludedLocationRow(row, this.definition, this.document.location.href)) continue
-      const stableId = deriveStableId(row, this.definition, this.document.location.href)
-      if (stableId === null) {
-        hideRow(row, 'awaiting-id')
-        continue
-      }
-      const text = extractText(row, this.definition)
-      if (text === null) continue
-
-      hideRow(row, 'awaiting-verdict')
-      const hash = await hashMessageText(text)
-      this.stableIdToHash.set(stableId, hash)
-      const knownVerdict = this.hashVerdicts.get(hash)
-      if (knownVerdict !== undefined) {
-        applyVerdict(row, knownVerdict)
-        continue
-      }
-      messages.push({ stableId, hash, text })
-    }
-    return messages
-  }
-
-  private applyStableIdVerdict(stableId: string, hide: boolean): number {
-    const hash = this.stableIdToHash.get(stableId)
-    if (hash !== undefined) this.hashVerdicts.set(hash, hide)
-    const rows = this.currentRowsForStableId(stableId)
-    for (const row of rows) applyVerdict(row, hide)
-    return rows.length
-  }
-
-  private applyUnclassifiedVerdict(verdict: MessageVerdict): void {
-    for (const row of this.currentRowsForStableId(verdict.stableId)) {
-      hideRow(row, 'awaiting-verdict')
-    }
-    this.sent.delete(verdict.stableId)
-    this.scheduleUnclassifiedRetry(verdict.stableId)
-  }
-
-  private applyHashVerdict(verdict: HashVerdict): void {
-    this.hashVerdicts.set(verdict.hash, verdict.hide)
-    for (const [stableId, hash] of this.stableIdToHash) {
-      if (hash === verdict.hash) this.applyStableIdVerdict(stableId, verdict.hide)
-    }
-  }
-
-  private currentRowsForStableId(stableId: string): Element[] {
-    return collectRows(this.targetDocuments(), this.definition).filter(
-      (row) => deriveStableId(row, this.definition, this.document.location.href) === stableId,
-    )
-  }
-
-  private pruneKnownRows(rows: readonly Element[]): void {
-    const currentStableIds = new Set<string>()
-    for (const row of rows) {
-      const stableId = deriveStableId(row, this.definition, this.document.location.href)
-      if (stableId !== null) currentStableIds.add(stableId)
-    }
-    for (const stableId of this.stableIdToHash.keys()) {
-      if (!currentStableIds.has(stableId)) this.stableIdToHash.delete(stableId)
-    }
-    for (const stableId of this.sent.keys()) {
-      if (!currentStableIds.has(stableId)) this.sent.delete(stableId)
-    }
-    for (const stableId of this.retryTimers.keys()) {
-      if (!currentStableIds.has(stableId)) this.clearRetryTimer(stableId)
-    }
-    const currentHashes = new Set(this.stableIdToHash.values())
-    for (const hash of this.hashVerdicts.keys()) {
-      if (!currentHashes.has(hash)) this.hashVerdicts.delete(hash)
-    }
-  }
-
-  private scheduleUnclassifiedRetry(stableId: string): void {
-    if (this.retryTimers.has(stableId)) return
-    const timer = setTimeout(() => {
-      this.retryTimers.delete(stableId)
-      this.sent.delete(stableId)
+  private scheduleRetry(): void {
+    if (this.retryTimer !== null) return
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
       void this.scan()
     }, this.unclassifiedRetryMs)
-    this.retryTimers.set(stableId, timer)
-  }
-
-  private clearRetryTimer(stableId: string): void {
-    const timer = this.retryTimers.get(stableId)
-    if (timer !== undefined) clearTimeout(timer)
-    this.retryTimers.delete(stableId)
   }
 
   private targetDocuments(): Document[] {
@@ -216,6 +143,16 @@ export class SerenityContentScript {
       .map((frame) => frameDocument(frame))
       .filter((document): document is Document => document !== null)
   }
+
+  private injectDefaultHideStyles(): void {
+    for (const targetDocument of this.targetDocuments()) {
+      injectDefaultHideStyles(targetDocument, this.definition)
+    }
+  }
+}
+
+interface ExtractedRow extends ExtractedMessage {
+  row: Element
 }
 
 export function activeSelectorDefinition(
@@ -257,17 +194,10 @@ export function installSerenityContentScripts(
   })
 }
 
-export function deriveStableId(
-  row: Element,
+export function collectRows(
+  documents: readonly Document[],
   definition: ServiceSelectorDefinition,
-  locationHref: string,
-): string | null {
-  if (definition.stableId.type === 'react-prop') return deriveReactPropStableId(row, definition)
-  if (definition.stableId.type === 'vue-prop') return deriveVuePropStableId(row, definition)
-  return deriveAttributeStableId(row, definition)
-}
-
-function collectRows(documents: readonly Document[], definition: ServiceSelectorDefinition): Element[] {
+): Element[] {
   const selectors = [definition.rowSelector, ...(definition.nestedRowSelectors ?? [])]
   const seen = new Set<Element>()
   const rows: Element[] = []
@@ -280,128 +210,40 @@ function collectRows(documents: readonly Document[], definition: ServiceSelector
       }
     }
   }
-  return rows
+  return definition.skipFirstRow === true ? rows.slice(1) : rows
 }
 
-function deriveAttributeStableId(
-  row: Element,
-  definition: ServiceSelectorDefinition,
-): string | null {
-  if (definition.stableId.type !== 'attribute') return null
-  const source =
-    definition.stableId.selector === undefined ? row : row.querySelector(definition.stableId.selector)
-  const value = source?.getAttribute(definition.stableId.attribute)
-  if (value === undefined || value === null) return null
-
-  const match = new RegExp(definition.stableId.pattern).exec(value)
-  if (match?.[1] === undefined) return null
-
-  const stableId = `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
-  return stableId
+export function defaultHideCss(definition: ServiceSelectorDefinition): string {
+  const selectors = [definition.rowSelector, ...(definition.nestedRowSelectors ?? [])]
+    .map((selector) => `${selector}:not([data-serenity-hidden="shown"])`)
+    .join(',\n')
+  return `${selectors} { display: none !important; }`
 }
 
-function deriveReactPropStableId(
-  row: Element,
+function injectDefaultHideStyles(
+  document: Document,
   definition: ServiceSelectorDefinition,
-): string | null {
-  if (definition.stableId.type !== 'react-prop') return null
-  const fiber = reactFiberFor(row)
-  for (let current = fiber; current !== null; current = reactParentFiber(current)) {
-    const value =
-      readPath(reactProps(current, 'memoizedProps'), definition.stableId.propPath) ??
-      readPath(reactProps(current, 'pendingProps'), definition.stableId.propPath)
-    if (typeof value !== 'string') continue
+): void {
+  const id = `serenity-default-hide-${definition.serviceId}-${hashStyleKey(definition)}`
+  if (document.getElementById(id) !== null) return
+  const style = document.createElement('style')
+  style.id = id
+  style.textContent = defaultHideCss(definition)
+  document.documentElement.append(style)
+}
 
-    const match = new RegExp(definition.stableId.pattern).exec(value)
-    if (match?.[1] !== undefined) return `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
+function hashStyleKey(definition: ServiceSelectorDefinition): string {
+  let hash = 0
+  const key = `${definition.containerSelector}\n${definition.rowSelector}\n${definition.nestedRowSelectors?.join('\n') ?? ''}`
+  for (let index = 0; index < key.length; index += 1) {
+    hash = (hash * 31 + key.charCodeAt(index)) >>> 0
   }
-  return null
+  return hash.toString(36)
 }
 
-function deriveVuePropStableId(
-  row: Element,
-  definition: ServiceSelectorDefinition,
-): string | null {
-  if (definition.stableId.type !== 'vue-prop') return null
-  const component = vueComponentFor(row)
-  const value =
-    readPath(vueProps(component, '_props'), definition.stableId.propPath) ??
-    readPath(vueProps(component, 'propsData'), definition.stableId.propPath)
-  if (typeof value !== 'string' && typeof value !== 'number') return null
-
-  const match = new RegExp(definition.stableId.pattern).exec(String(value))
-  if (match?.[1] !== undefined) return `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
-  return null
-}
-
-export function isExcludedLocationRow(
-  row: Element,
-  definition: ServiceSelectorDefinition,
-  locationHref: string,
-): boolean {
-  const current = deriveLocationStableId(definition, locationHref)
-  return current !== null && deriveStableId(row, definition, locationHref) === current
-}
-
-function deriveLocationStableId(
-  definition: ServiceSelectorDefinition,
-  locationHref: string,
-): string | null {
-  const rule = definition.excludeStableIdFromLocation
-  if (rule === undefined) return null
-  const match = new RegExp(rule.pattern).exec(locationHref)
-  return match?.[1] === undefined ? null : `${rule.prefix}${match[1]}`
-}
-
-function extractText(row: Element, definition: ServiceSelectorDefinition): string | null {
-  const textNodes = Array.from(row.querySelectorAll(definition.textSelector))
-  const values = textNodes.map((node) => node.textContent?.trim() ?? '').filter(Boolean)
-  if (values.length === 0) return null
-  return definition.textMode === 'first' ? values[0]! : values.join('\n')
-}
-
-type ReactFiber = {
-  return?: ReactFiber | null
-  pendingProps?: unknown
-  memoizedProps?: unknown
-}
-
-type VueComponent = {
-  _props?: unknown
-  $options?: {
-    propsData?: unknown
-  }
-}
-
-function reactFiberFor(row: Element): ReactFiber | null {
-  const name = Object.getOwnPropertyNames(row).find((property) => property.startsWith('__reactFiber$'))
-  return name === undefined ? null : ((row as unknown as Record<string, ReactFiber | undefined>)[name] ?? null)
-}
-
-function reactParentFiber(fiber: ReactFiber): ReactFiber | null {
-  return fiber.return ?? null
-}
-
-function reactProps(fiber: ReactFiber, key: 'memoizedProps' | 'pendingProps'): unknown {
-  return fiber[key]
-}
-
-function vueComponentFor(row: Element): VueComponent | null {
-  return (row as unknown as { __vue__?: VueComponent }).__vue__ ?? null
-}
-
-function vueProps(component: VueComponent | null, key: '_props' | 'propsData'): unknown {
-  if (component === null) return undefined
-  return key === '_props' ? component._props : component.$options?.propsData
-}
-
-function readPath(source: unknown, path: readonly string[]): unknown {
-  let current = source
-  for (const segment of path) {
-    if (current === null || typeof current !== 'object') return undefined
-    current = (current as Record<string, unknown>)[segment]
-  }
-  return current
+function extractText(row: Element): string | null {
+  const text = row.textContent?.trim() ?? ''
+  return text.length === 0 ? null : text
 }
 
 function frameDocument(frame: Element): Document | null {
@@ -414,21 +256,13 @@ function frameDocument(frame: Element): Document | null {
   }
 }
 
-function hideRow(row: Element, state: 'awaiting-id' | 'awaiting-verdict'): void {
-  const html = row as HTMLElement
-  html.dataset.serenityHidden = state
-  html.style.display = 'none'
-}
-
 function applyVerdict(row: Element, hide: boolean): void {
   const html = row as HTMLElement
   if (hide) {
     html.dataset.serenityHidden = 'verdict'
-    html.style.display = 'none'
     return
   }
   html.dataset.serenityHidden = 'shown'
-  html.style.removeProperty('display')
 }
 
 if (typeof chrome !== 'undefined' && typeof document !== 'undefined') {

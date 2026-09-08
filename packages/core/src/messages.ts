@@ -2,16 +2,8 @@ import type { ServiceId } from './services'
 import type { PresetName } from './presets'
 import type { Classification } from './axes'
 
-export const HIDE_OPTIMISTICALLY = true
-
 export interface ExtractedMessage {
   hash: string
-  stableId: string
-  text: string
-}
-
-export interface InterceptedNetworkMessage {
-  stableId: string
   text: string
 }
 
@@ -21,20 +13,20 @@ export type MessageVerdict =
   | UnclassifiedMessageVerdict
 
 export interface ClassifiedMessageVerdict {
-  stableId: string
+  hash: string
   hide: boolean
   status: 'classified'
 }
 
 export interface HiddenMessageVerdict {
-  stableId: string
+  hash: string
   hide: true
   status: 'hidden'
   reason: 'tier0_local_heuristic' | 'tier1_moderation'
 }
 
 export interface UnclassifiedMessageVerdict {
-  stableId: string
+  hash: string
   hide: true
   status: 'unclassified'
   reason: 'quota_exhausted' | 'no_proxy_token'
@@ -48,13 +40,11 @@ export interface HashVerdict {
 export interface ClassifyMessagesRequest {
   type: 'serenity.classifyMessages'
   serviceId: ServiceId
-  /** Content scripts own stableId-to-hash maps; MV3 workers only see this batch. */
   messages: readonly ExtractedMessage[]
 }
 
 export interface ClassifyMessagesResponse {
   type: 'serenity.classifyMessagesResult'
-  optimisticHide: true
   verdicts: readonly MessageVerdict[]
 }
 
@@ -86,23 +76,7 @@ export interface RefilterCachedMessagesRequest {
 
 export interface RefilterCachedMessagesResponse {
   type: 'serenity.refilterCachedMessagesResult'
-  /** Hash-keyed because content scripts map hashes back to current DOM stableIds. */
   verdicts: readonly HashVerdict[]
-}
-
-export interface NetworkInterceptionClassifyRequest {
-  source: 'serenity.main'
-  type: 'serenity.intercept.classify'
-  requestId: string
-  serviceId: ServiceId
-  messages: readonly InterceptedNetworkMessage[]
-}
-
-export interface NetworkInterceptionClassifyResponse {
-  source: 'serenity.isolated'
-  type: 'serenity.intercept.classifyResult'
-  requestId: string
-  hiddenStableIds: readonly string[]
 }
 
 export interface SetDefaultPresetRequest {
