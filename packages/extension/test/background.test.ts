@@ -20,18 +20,19 @@ describe('background worker logic', () => {
     const settingsStore = new MemorySettingsStore({
       defaultPreset: 'aggressive',
       servicePresetOverrides: {},
-      hiddenCount: 0,
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
       proxyUrl: 'https://proxy.example',
       proxyToken: 'signed-token',
     })
+    const hash = await hashMessageText('same bad text')
 
     const response = await handleClassifyMessages(
       {
         type: 'serenity.classifyMessages',
         serviceId: 'x_dms',
         messages: [
-          { stableId: 'a', text: 'same bad text' },
-          { stableId: 'b', text: 'same bad text' },
+          { stableId: 'a', hash, text: 'same bad text' },
+          { stableId: 'b', hash, text: 'same bad text' },
         ],
       },
       { cache, settingsStore, proxy },
@@ -58,7 +59,13 @@ describe('background worker logic', () => {
       {
         type: 'serenity.classifyMessages',
         serviceId: 'x_dms',
-        messages: [{ stableId: 'a', text: 'unclassified text' }],
+        messages: [
+          {
+            stableId: 'a',
+            hash: await hashMessageText('unclassified text'),
+            text: 'unclassified text',
+          },
+        ],
       },
       {
         cache: new MemoryLocalVectorCache(),
@@ -84,18 +91,18 @@ describe('background worker logic', () => {
     const aggressive = await refilterCachedMessages(cache, {
       defaultPreset: 'aggressive',
       servicePresetOverrides: {},
-      hiddenCount: 0,
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
       proxyUrl: 'https://proxy.example',
     })
     const balanced = await refilterCachedMessages(cache, {
       defaultPreset: 'balanced',
       servicePresetOverrides: {},
-      hiddenCount: 0,
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
       proxyUrl: 'https://proxy.example',
     })
 
-    expect(aggressive).toEqual([{ stableId: await hashMessageText('borderline insult'), hide: true }])
-    expect(balanced).toEqual([{ stableId: await hashMessageText('borderline insult'), hide: false }])
+    expect(aggressive).toEqual([{ hash: await hashMessageText('borderline insult'), hide: true }])
+    expect(balanced).toEqual([{ hash: await hashMessageText('borderline insult'), hide: false }])
   })
 
   it('popup state exposes count and settings without hidden message details', async () => {
@@ -103,7 +110,7 @@ describe('background worker logic', () => {
       new MemorySettingsStore({
         defaultPreset: 'balanced',
         servicePresetOverrides: { onlyfans_dms: 'off' },
-        hiddenCount: 9,
+        hiddenCounts: { byVerdict: 7, awaitingVerdict: 2 },
         proxyUrl: 'https://proxy.example',
       }),
     )
@@ -124,7 +131,7 @@ describe('background worker logic', () => {
     const settingsStore = new MemorySettingsStore({
       defaultPreset: 'aggressive',
       servicePresetOverrides: {},
-      hiddenCount: 0,
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
       proxyUrl: 'https://proxy.example',
     })
     await cache.put({
@@ -145,6 +152,39 @@ describe('background worker logic', () => {
       hiddenCount: 0,
     })
     expect(proxy.calls).toEqual([])
+  })
+
+  it('keeps awaiting-verdict hidden count separate from verdict-hidden count', async () => {
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+    })
+
+    await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'x_dms',
+        messages: [
+          {
+            stableId: 'pending',
+            hash: await hashMessageText('pending text'),
+            text: 'pending text',
+          },
+        ],
+      },
+      {
+        cache: new MemoryLocalVectorCache(),
+        settingsStore,
+        proxy: recordingProxy([]),
+      },
+    )
+
+    expect(await settingsStore.get()).toMatchObject({
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 1 },
+    })
+    expect(await popupState(settingsStore)).toMatchObject({ hiddenCount: 1 })
   })
 })
 

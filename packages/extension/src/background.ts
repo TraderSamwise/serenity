@@ -10,11 +10,12 @@ import type {
   ClassifyMessagesResponse,
   ExtensionRequest,
   ExtensionResponse,
+  HashVerdict,
   MessageVerdict,
   PopupStateResponse,
+  RefilterCachedMessagesResponse,
   ServiceId,
 } from '@serenity/core'
-import { hashMessageText } from './hash'
 import { IndexedDbLocalVectorCache } from './local-cache'
 import type { LocalCacheRecord, LocalVectorCache } from './local-cache'
 import { HttpProxyClient } from './proxy-client'
@@ -22,6 +23,7 @@ import type { ProxyClient } from './proxy-client'
 import {
   ChromeSettingsStore,
   presetForService,
+  totalHiddenCount,
 } from './settings'
 import type { ExtensionSettings, SettingsStore } from './settings'
 
@@ -36,6 +38,9 @@ export async function handleRuntimeMessage(
   deps: BackgroundDependencies,
 ): Promise<ExtensionResponse> {
   if (message.type === 'serenity.popupState') return popupState(deps.settingsStore)
+  if (message.type === 'serenity.refilterCachedMessages') {
+    return refilterCachedMessagesResponse(deps.cache, await deps.settingsStore.get())
+  }
   if (message.type === 'serenity.setDefaultPreset') {
     const settings = await deps.settingsStore.get()
     await updateHiddenCount(deps.cache, deps.settingsStore, {
@@ -67,14 +72,11 @@ export async function handleClassifyMessages(
 ): Promise<ClassifyMessagesResponse> {
   const settings = await deps.settingsStore.get()
   const prepared = await Promise.all(
-    request.messages.map(async (message) => {
-      const hash = await hashMessageText(message.text)
-      return {
-        message,
-        hash,
-        cached: await deps.cache.get(hash),
-      }
-    }),
+    request.messages.map(async (message) => ({
+      message,
+      hash: message.hash,
+      cached: await deps.cache.get(message.hash),
+    })),
   )
   const missingByHash = new Map(
     prepared
@@ -100,13 +102,33 @@ export async function handleClassifyMessages(
       ),
     )
   }
+  await Promise.all(
+    prepared
+      .filter((item) => item.cached !== undefined)
+      .map((item) =>
+        deps.cache.put({
+          hash: item.hash,
+          text: item.message.text,
+          serviceId: request.serviceId,
+          classification: item.cached!.classification,
+        }),
+      ),
+  )
 
   const verdicts = await Promise.all(
     prepared.map(async ({ message, hash }) =>
       verdictForMessage(message.stableId, hash, request.serviceId, settings, deps.cache),
     ),
   )
-  await updateHiddenCount(deps.cache, deps.settingsStore, settings)
+  const awaitingVerdict = (
+    await Promise.all(
+      verdicts.map(async (verdict) => {
+        const preparedItem = prepared.find((item) => item.message.stableId === verdict.stableId)
+        return verdict.hide && preparedItem !== undefined && (await deps.cache.get(preparedItem.hash)) === undefined
+      }),
+    )
+  ).filter(Boolean).length
+  await updateHiddenCount(deps.cache, deps.settingsStore, settings, awaitingVerdict)
 
   return {
     type: 'serenity.classifyMessagesResult',
@@ -118,12 +140,22 @@ export async function handleClassifyMessages(
 export async function refilterCachedMessages(
   cache: LocalVectorCache,
   settings: ExtensionSettings,
-): Promise<MessageVerdict[]> {
+): Promise<HashVerdict[]> {
   const records = await cache.all()
   return records.map((record) => ({
-    stableId: record.hash,
+    hash: record.hash,
     hide: record.serviceIds.some((serviceId) => evaluateRecord(record, serviceId, settings)),
   }))
+}
+
+export async function refilterCachedMessagesResponse(
+  cache: LocalVectorCache,
+  settings: ExtensionSettings,
+): Promise<RefilterCachedMessagesResponse> {
+  return {
+    type: 'serenity.refilterCachedMessagesResult',
+    verdicts: await refilterCachedMessages(cache, settings),
+  }
 }
 
 export async function popupState(
@@ -134,7 +166,7 @@ export async function popupState(
     type: 'serenity.popupStateResult',
     currentPreset: settings.defaultPreset,
     servicePresetOverrides: settings.servicePresetOverrides,
-    hiddenCount: settings.hiddenCount,
+    hiddenCount: totalHiddenCount(settings),
   }
 }
 
@@ -183,11 +215,15 @@ async function updateHiddenCount(
   cache: LocalVectorCache,
   settingsStore: SettingsStore,
   settings: ExtensionSettings,
+  awaitingVerdict = settings.hiddenCounts.awaitingVerdict,
 ): Promise<void> {
   const verdicts = await refilterCachedMessages(cache, settings)
   await settingsStore.set({
     ...settings,
-    hiddenCount: verdicts.filter((verdict) => verdict.hide).length,
+    hiddenCounts: {
+      byVerdict: verdicts.filter((verdict) => verdict.hide).length,
+      awaitingVerdict,
+    },
   })
 }
 

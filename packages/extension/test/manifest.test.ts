@@ -11,6 +11,7 @@ describe('MV3 manifest', () => {
       permissions: string[]
       host_permissions: string[]
       background: { service_worker: string; type: string }
+      content_scripts: Array<{ matches: string[]; js: string[]; run_at: string }>
     }
 
     expect(manifest.manifest_version).toBe(3)
@@ -30,5 +31,12 @@ describe('MV3 manifest', () => {
       service_worker: 'dist/background.js',
       type: 'module',
     })
+    expect(manifest.content_scripts).toEqual([
+      {
+        matches: ['https://x.com/*'],
+        js: ['dist/content-script.js'],
+        run_at: 'document_start',
+      },
+    ])
   })
 })

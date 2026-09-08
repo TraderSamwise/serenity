@@ -4,10 +4,15 @@ import type { PresetName, ServiceId } from '@serenity/core'
 export interface ExtensionSettings {
   defaultPreset: PresetName
   servicePresetOverrides: Partial<Record<ServiceId, PresetName>>
-  hiddenCount: number
+  hiddenCounts: HiddenCounts
   proxyUrl: string
   proxyToken?: string
   installId?: string
+}
+
+export interface HiddenCounts {
+  byVerdict: number
+  awaitingVerdict: number
 }
 
 export interface SettingsStore {
@@ -18,7 +23,10 @@ export interface SettingsStore {
 export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
   defaultPreset: 'aggressive',
   servicePresetOverrides: {},
-  hiddenCount: 0,
+  hiddenCounts: {
+    byVerdict: 0,
+    awaitingVerdict: 0,
+  },
   proxyUrl: 'http://localhost:8787',
 }
 
@@ -46,6 +54,10 @@ export class ChromeSettingsStore implements SettingsStore {
         ...DEFAULT_EXTENSION_SETTINGS.servicePresetOverrides,
         ...stored.servicePresetOverrides,
       },
+      hiddenCounts: {
+        ...DEFAULT_EXTENSION_SETTINGS.hiddenCounts,
+        ...stored.hiddenCounts,
+      },
     } as ExtensionSettings
   }
 
@@ -56,4 +68,8 @@ export class ChromeSettingsStore implements SettingsStore {
 
 export function presetForService(settings: ExtensionSettings, serviceId: ServiceId) {
   return PRESETS[settings.servicePresetOverrides[serviceId] ?? settings.defaultPreset]
+}
+
+export function totalHiddenCount(settings: ExtensionSettings): number {
+  return settings.hiddenCounts.byVerdict + settings.hiddenCounts.awaitingVerdict
 }
