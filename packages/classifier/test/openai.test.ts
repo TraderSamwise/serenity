@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SCHEMA_VERSION } from '@serenity/core'
-import { classifyWithOpenAI } from '../src/openai'
+import { classifyWithOpenAI, classifyWithOpenAIResult } from '../src/openai'
 import { cacheKeyForText, sha256Hex } from '../src/hash'
 import { CLASSIFIER_JSON_SCHEMA, CLASSIFIER_MODEL } from '../src/schema'
 
@@ -13,6 +13,7 @@ describe('OpenAI classifier request', () => {
         JSON.stringify({
           usage: {
             input_tokens: 100,
+            input_tokens_details: { cached_tokens: 80 },
             output_tokens: 20,
             total_tokens: 120,
           },
@@ -75,6 +76,11 @@ describe('OpenAI classifier request', () => {
       targeted: 0.2,
       confidence: 0.99,
     })
+    const withUsage = await classifyWithOpenAIResult(
+      { id: 'stub-002', text: 'Synthetic stub message', tags: [] },
+      { apiKey: 'test-key', installId: 'install-123', fetchImpl },
+    )
+    expect(withUsage.usage.input_tokens_details?.cached_tokens).toBe(80)
     expect(cacheKeyForText(' A  B ')).toBe(cacheKeyForText('a b'))
   })
 })

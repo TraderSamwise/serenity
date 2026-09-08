@@ -23,6 +23,9 @@ export interface SpendLedgerRow {
   outputTokens: number | null
   totalTokens: number | null
   estimatedCostUsd: number | null
+  measuredCostUsd: number | null
+  costStatus: 'projected' | 'estimated_unreconciled' | 'dashboard_measured' | 'reconciled'
+  dashboardRatio: number | null
   reconstructed: boolean
   pricing: {
     checkedAt: string
@@ -67,8 +70,23 @@ export function measuredSpendLedgerRow(options: {
     outputTokens: options.usage.outputTokens,
     totalTokens: options.usage.totalTokens,
     estimatedCostUsd: estimateOpenAICostUsd(options.usage),
+    measuredCostUsd: null,
+    costStatus: 'estimated_unreconciled',
+    dashboardRatio: null,
     reconstructed: false,
   }
   if (options.notes !== undefined) row.notes = options.notes
   return row
+}
+
+export function reconcileSpendLedgerRow(
+  row: SpendLedgerRow,
+  measuredCostUsd: number,
+): SpendLedgerRow {
+  return {
+    ...row,
+    measuredCostUsd,
+    costStatus: 'reconciled',
+    dashboardRatio: row.estimatedCostUsd === null ? null : measuredCostUsd / row.estimatedCostUsd,
+  }
 }

@@ -84,6 +84,7 @@ async function main(): Promise<void> {
       `output_tokens=${usage.outputTokens}`,
       `total_tokens=${usage.totalTokens}`,
       `estimated_cost_usd=${ledgerRow.estimatedCostUsd!.toFixed(4)}`,
+      `cost_status=${result.classified === 0 ? 'no_spend' : ledgerRow.costStatus}`,
       `wall_clock_seconds=${wallClockSeconds.toFixed(1)}`,
       `cache=${CACHE_PATH}`,
       `ledger=${LEDGER_PATH}`,
