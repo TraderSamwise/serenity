@@ -1,18 +1,17 @@
-import { resolve } from 'node:path'
 import {
   openAIClassifier,
   openAIModerationClient,
 } from './classify'
-import { FileGlobalHashCache } from './hash-cache'
 import { createProxyApp } from './http'
 import type { ProxyApp } from './http'
-import { FileQuotaStore } from './quota'
+import { createUpstashGlobalHashCache } from './upstash-cache'
+import { createUpstashQuotaStore } from './upstash-quota'
 
 export interface ProxyConfig {
   apiKey: string
   tokenSecret: string
-  cachePath: string
-  quotaPath: string
+  upstashRedisRestUrl: string
+  upstashRedisRestToken: string
   perInstallTier2Quota: number
   globalTier2Ceiling: number
   globalTokenCeiling: number
@@ -22,11 +21,23 @@ export interface ProxyConfig {
 }
 
 export function loadProxyConfig(env = process.env): ProxyConfig {
+  const missing = missingRequiredEnv(env, [
+    'SERENITY_OPENAI_API_KEY',
+    'SERENITY_PROXY_TOKEN_SECRET',
+    'SERENITY_UPSTASH_REDIS_REST_URL',
+    'SERENITY_UPSTASH_REDIS_REST_TOKEN',
+  ])
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing proxy environment variables in packages/proxy/.env.local: ${missing.join(', ')}.`,
+    )
+  }
+
   const config: ProxyConfig = {
-    apiKey: required(env.SERENITY_OPENAI_API_KEY, 'SERENITY_OPENAI_API_KEY'),
-    tokenSecret: required(env.SERENITY_PROXY_TOKEN_SECRET, 'SERENITY_PROXY_TOKEN_SECRET'),
-    cachePath: env.SERENITY_PROXY_CACHE_PATH ?? resolve('data/global-cache.v1.json'),
-    quotaPath: env.SERENITY_PROXY_QUOTA_PATH ?? resolve('data/quota.v1.json'),
+    apiKey: env.SERENITY_OPENAI_API_KEY!,
+    tokenSecret: env.SERENITY_PROXY_TOKEN_SECRET!,
+    upstashRedisRestUrl: env.SERENITY_UPSTASH_REDIS_REST_URL!,
+    upstashRedisRestToken: env.SERENITY_UPSTASH_REDIS_REST_TOKEN!,
     perInstallTier2Quota: numberEnv(env.SERENITY_PROXY_PER_INSTALL_TIER2_QUOTA, 1000),
     globalTier2Ceiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TIER2_CEILING, 100000),
     globalTokenCeiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TOKEN_CEILING, 50000000),
@@ -41,12 +52,19 @@ export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
   const options = {
     tokenSecret: config.tokenSecret,
     deps: {
-      cache: new FileGlobalHashCache(config.cachePath),
-      quota: new FileQuotaStore(config.quotaPath, {
-        perInstallTier2Quota: config.perInstallTier2Quota,
-        globalTier2Ceiling: config.globalTier2Ceiling,
-        globalTokenCeiling: config.globalTokenCeiling,
-        tier2Enabled: config.tier2Enabled,
+      cache: createUpstashGlobalHashCache({
+        url: config.upstashRedisRestUrl,
+        token: config.upstashRedisRestToken,
+      }),
+      quota: createUpstashQuotaStore({
+        url: config.upstashRedisRestUrl,
+        token: config.upstashRedisRestToken,
+        quota: {
+          perInstallTier2Quota: config.perInstallTier2Quota,
+          globalTier2Ceiling: config.globalTier2Ceiling,
+          globalTokenCeiling: config.globalTokenCeiling,
+          tier2Enabled: config.tier2Enabled,
+        },
       }),
       tier1: openAIModerationClient(config.apiKey),
       tier2: openAIClassifier(config.apiKey),
@@ -57,11 +75,11 @@ export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
   )
 }
 
-function required(value: string | undefined, name: string): string {
-  if (!value) {
-    throw new Error(`Missing ${name}. Put it in packages/proxy/.env.local.`)
-  }
-  return value
+function missingRequiredEnv(
+  env: NodeJS.ProcessEnv,
+  names: readonly string[],
+): string[] {
+  return names.filter((name) => env[name] === undefined || env[name] === '')
 }
 
 function numberEnv(value: string | undefined, fallback: number): number {

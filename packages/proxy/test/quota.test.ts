@@ -12,7 +12,8 @@ describe('quota accounting', () => {
       tier2Enabled: true,
     })
 
-    await quota.recordTier2(installId, 123)
+    expect(await quota.reserveTier2(installId, 200)).toBe(true)
+    await quota.recordTier2(installId, 123, 200)
 
     expect(quota.snapshot()).toMatchObject({
       installs: {

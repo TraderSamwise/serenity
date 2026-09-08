@@ -9,8 +9,8 @@ export interface UsageSnapshot {
 }
 
 export interface QuotaStore {
-  canUseTier2(installId: string): Promise<boolean>
-  recordTier2(installId: string, tokens: number): Promise<void>
+  reserveTier2(installId: string, estimatedTokens: number): Promise<boolean>
+  recordTier2(installId: string, tokens: number, reservedTokens: number): Promise<void>
 }
 
 export interface QuotaOptions {
@@ -33,12 +33,14 @@ export class MemoryQuotaStore implements QuotaStore {
 
   constructor(private readonly options: QuotaOptions) {}
 
-  async canUseTier2(installId: string): Promise<boolean> {
-    return canUseTier2(this.usage, installId, this.options)
+  async reserveTier2(installId: string, estimatedTokens: number): Promise<boolean> {
+    if (!canUseTier2(this.usage, installId, estimatedTokens, this.options)) return false
+    reserveTier2(this.usage, installId, estimatedTokens)
+    return true
   }
 
-  async recordTier2(installId: string, tokens: number): Promise<void> {
-    recordTier2(this.usage, installId, tokens)
+  async recordTier2(_installId: string, tokens: number, reservedTokens: number): Promise<void> {
+    recordTier2(this.usage, tokens, reservedTokens)
   }
 
   snapshot(): UsageSnapshot {
@@ -54,13 +56,17 @@ export class FileQuotaStore implements QuotaStore {
     private readonly options: QuotaOptions,
   ) {}
 
-  async canUseTier2(installId: string): Promise<boolean> {
-    return canUseTier2(await this.load(), installId, this.options)
+  async reserveTier2(installId: string, estimatedTokens: number): Promise<boolean> {
+    const usage = await this.load()
+    if (!canUseTier2(usage, installId, estimatedTokens, this.options)) return false
+    reserveTier2(usage, installId, estimatedTokens)
+    await this.save(usage)
+    return true
   }
 
-  async recordTier2(installId: string, tokens: number): Promise<void> {
+  async recordTier2(_installId: string, tokens: number, reservedTokens: number): Promise<void> {
     const usage = await this.load()
-    recordTier2(usage, installId, tokens)
+    recordTier2(usage, tokens, reservedTokens)
     await this.save(usage)
   }
 
@@ -92,19 +98,29 @@ function installUsageKey(installId: string): string {
 function canUseTier2(
   usage: UsageSnapshot,
   installId: string,
+  estimatedTokens: number,
   options: QuotaOptions,
 ): boolean {
   if (!options.tier2Enabled) return false
   if (usage.globalTier2Classifications >= options.globalTier2Ceiling) return false
   if (usage.globalTokens >= options.globalTokenCeiling) return false
+  if (usage.globalTokens + estimatedTokens > options.globalTokenCeiling) return false
 
   const installKey = installUsageKey(installId)
   return (usage.installs[installKey] ?? 0) < options.perInstallTier2Quota
 }
 
-function recordTier2(usage: UsageSnapshot, installId: string, tokens: number): void {
+function reserveTier2(
+  usage: UsageSnapshot,
+  installId: string,
+  estimatedTokens: number,
+): void {
   const installKey = installUsageKey(installId)
   usage.installs[installKey] = (usage.installs[installKey] ?? 0) + 1
   usage.globalTier2Classifications += 1
-  usage.globalTokens += tokens
+  usage.globalTokens += estimatedTokens
+}
+
+function recordTier2(usage: UsageSnapshot, tokens: number, reservedTokens: number): void {
+  usage.globalTokens = Math.max(0, usage.globalTokens + tokens - reservedTokens)
 }

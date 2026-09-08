@@ -3,8 +3,13 @@ import {
   hiddenByMostPermissiveHandling,
 } from '@serenity/core'
 import type { Classification, ProxyClassifyResult } from '@serenity/core'
-import { classifyWithOpenAIResult } from '@serenity/classifier'
+import {
+  METRIC_RUBRIC_FIELDS,
+  classifyWithOpenAIResult,
+  estimateRunCost,
+} from '@serenity/classifier'
 import type { OpenAIUsage } from '@serenity/classifier'
+import { SCORED_AXES } from '@serenity/core'
 import { textHash } from './hash-cache'
 import type { GlobalHashCache } from './hash-cache'
 import {
@@ -115,10 +120,11 @@ async function classifyOne(
     return { status: 'hidden', reason: 'tier1_moderation' }
   }
 
-  if (await deps.quota.canUseTier2(installId)) {
+  const estimatedTier2Tokens = estimateTier2Tokens(text, hash)
+  if (await deps.quota.reserveTier2(installId, estimatedTier2Tokens)) {
     const tier2 = await deps.tier2.classify(text, installId)
     await deps.cache.set(hash, tier2.classification)
-    await deps.quota.recordTier2(installId, tier2.usage.total_tokens)
+    await deps.quota.recordTier2(installId, tier2.usage.total_tokens, estimatedTier2Tokens)
     stats.tier2Classifications += 1
     stats.usage.inputTokens += tier2.usage.input_tokens
     stats.usage.cachedInputTokens += tier2.usage.input_tokens_details?.cached_tokens ?? 0
@@ -129,6 +135,16 @@ async function classifyOne(
 
   stats.freeTierFallbacks += 1
   return { status: 'unclassified', reason: 'quota_exhausted' }
+}
+
+function estimateTier2Tokens(text: string, hash: string): number {
+  const estimate = estimateRunCost([
+    {
+      message: { id: hash, text, tags: [] },
+      fields: [...SCORED_AXES, ...METRIC_RUBRIC_FIELDS],
+    },
+  ])
+  return estimate.inputTokens + estimate.outputTokens
 }
 
 function classified(classification: Classification): ProxyClassifyResult {
