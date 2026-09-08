@@ -9,7 +9,7 @@ export const ONLYFANS_DM_LIST_SELECTORS = {
 
 export const ONLYFANS_DM_SELECTORS = {
   serviceId: 'onlyfans_dms',
-  urlPattern: String.raw`^https://onlyfans\.com/my/chats/chat/[0-9]+/?(?:[?#].*)?$`,
+  urlPattern: String.raw`^https://onlyfans\.com/my/chats/(?:chat/[0-9]+/?)?(?:[?#].*)?$`,
   containerSelector: '.b-chat__messages',
   rowSelector: '.b-chat__messages .b-chat__message',
 } as const satisfies ServiceSelectorDefinition

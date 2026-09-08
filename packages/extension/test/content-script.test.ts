@@ -354,6 +354,10 @@ describe('selector-driven services', () => {
     const threadDom = onlyFansDmDom()
     const commentDom = onlyFansCommentDom()
 
+    expect(activeSelectorDefinitions('https://onlyfans.com/my/chats/')).toEqual([
+      ONLYFANS_DM_LIST_SELECTORS,
+      ONLYFANS_DM_SELECTORS,
+    ])
     expect(activeSelectorDefinitions('https://onlyfans.com/my/chats/chat/564580593/')).toEqual([
       ONLYFANS_DM_LIST_SELECTORS,
       ONLYFANS_DM_SELECTORS,
