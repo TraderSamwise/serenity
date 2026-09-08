@@ -18,7 +18,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://x.com/*", "https://www.youtube.com/watch*"],
+      "matches": ["https://x.com/*", "https://www.youtube.com/watch*", "https://www.twitch.tv/*"],
       "js": ["dist/content-script.js"],
       "run_at": "document_start"
     }

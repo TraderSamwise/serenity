@@ -14,7 +14,11 @@ import {
   isExcludedLocationRow,
 } from '../src/content-script'
 import { hashMessageText } from '../src/hash'
-import { X_OWN_POST_COMMENT_SELECTORS, YOUTUBE_COMMENT_SELECTORS } from '../src/selectors'
+import {
+  TWITCH_CHAT_SELECTORS,
+  X_OWN_POST_COMMENT_SELECTORS,
+  YOUTUBE_COMMENT_SELECTORS,
+} from '../src/selectors'
 import type { RuntimeMessenger } from '../src/content-script'
 
 const contentScriptPath = fileURLToPath(new URL('../src/content-script.ts', import.meta.url))
@@ -202,6 +206,111 @@ describe('YouTube comments content script', () => {
   })
 })
 
+describe('Twitch chat content script', () => {
+  it('uses the Twitch message UUID from React props and ignores system rows by selector', () => {
+    const dom = twitchChatDom()
+    const rows = [...dom.window.document.querySelectorAll('[data-a-target="chat-line-message"]')]
+
+    expect(activeSelectorDefinition(dom.window.location.href)).toBe(TWITCH_CHAT_SELECTORS)
+    expect(rows).toHaveLength(2)
+    expect(deriveStableId(rows[0]!, TWITCH_CHAT_SELECTORS, dom.window.location.href)).toBe(
+      'twitch-message:11111111-1111-4111-8111-111111111111',
+    )
+    expect(dom.window.document.querySelectorAll('[data-a-target="chat-welcome-message"]')).toHaveLength(1)
+  })
+
+  it('classifies only chat rows without a Twitch-specific content-script branch', async () => {
+    const dom = twitchChatDom()
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        {
+          stableId: 'twitch-message:11111111-1111-4111-8111-111111111111',
+          hide: false,
+        },
+        {
+          stableId: 'twitch-message:22222222-2222-4222-8222-222222222222',
+          hide: true,
+        },
+      ],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      TWITCH_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const rows = [...dom.window.document.querySelectorAll('[data-a-target="chat-line-message"]')] as HTMLElement[]
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('twitch_chat')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'twitch-message:11111111-1111-4111-8111-111111111111',
+        hash: await hashMessageText('First chat line'),
+        text: 'First chat line',
+      },
+      {
+        stableId: 'twitch-message:22222222-2222-4222-8222-222222222222',
+        hash: await hashMessageText('Wave\nEmoteName'),
+        text: 'Wave\nEmoteName',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('shown')
+    expect(rows[1]!.dataset.serenityHidden).toBe('verdict')
+
+    const source = await readFile(contentScriptPath, 'utf8')
+    expect(source).not.toContain('twitch_chat')
+    expect(source).not.toContain('TWITCH')
+  })
+
+  it('prunes bookkeeping for rows removed while classification is in flight', async () => {
+    const dom = twitchChatDom()
+    let resolveResponse: (response: ClassifyMessagesResponse) => void = () => {}
+    const pending = new Promise<ClassifyMessagesResponse>((resolve) => {
+      resolveResponse = resolve
+    })
+    const runtime = recordingRuntime(async () => pending)
+    const script = new SerenityContentScript(
+      dom.window.document,
+      TWITCH_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const scroller = dom.window.document.querySelector('[data-a-target="chat-scroller"]')!
+
+    const scan = script.scan()
+    await waitFor(() => runtime.calls.length === 1)
+    scroller.querySelectorAll('[data-a-target="chat-line-message"]').forEach((row) => row.remove())
+    await script.scan()
+
+    const internals = script as unknown as {
+      stableIdToHash: Map<string, string>
+      sent: Map<string, string>
+    }
+    expect(internals.stableIdToHash.size).toBe(0)
+    expect(internals.sent.size).toBe(0)
+
+    resolveResponse({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        {
+          stableId: 'twitch-message:11111111-1111-4111-8111-111111111111',
+          hide: false,
+        },
+      ],
+    })
+    await scan
+
+    expect(scroller.querySelectorAll('[data-a-target="chat-line-message"]')).toHaveLength(0)
+  })
+})
+
 function xStatusDom(): JSDOM {
   return new JSDOM(
     `<!doctype html>
@@ -250,6 +359,48 @@ function youtubeCommentsDom(): JSDOM {
       </ytd-watch-flexy>`,
     { url: 'https://www.youtube.com/watch?v=abc123' },
   )
+}
+
+function twitchChatDom(): JSDOM {
+  const dom = new JSDOM(
+    `<!doctype html>
+      <main>
+        <div data-a-target="chat-scroller" role="log">
+          <div data-a-target="chat-welcome-message">Welcome row</div>
+          <div data-a-target="chat-line-message" data-a-user="first" tabindex="0">
+            <span data-a-target="chat-message-username">first</span>
+            <span data-a-target="chat-line-message-body">
+              <span data-a-target="chat-message-text">First chat line</span>
+            </span>
+          </div>
+          <div data-a-target="chat-line-message" data-a-user="second" tabindex="0">
+            <span data-a-target="chat-message-username">second</span>
+            <span data-a-target="chat-line-message-body">
+              <span data-a-target="chat-message-text">Wave</span>
+              <span data-a-target="emote-name">EmoteName</span>
+            </span>
+          </div>
+        </div>
+      </main>`,
+    { url: 'https://www.twitch.tv/live_channel' },
+  )
+  const rows = [...dom.window.document.querySelectorAll('[data-a-target="chat-line-message"]')]
+  attachReactMessageId(rows[0]!, '11111111-1111-4111-8111-111111111111')
+  attachReactMessageId(rows[1]!, '22222222-2222-4222-8222-222222222222')
+  return dom
+}
+
+function attachReactMessageId(row: Element, id: string): void {
+  Object.defineProperty(row, '__reactFiber$test', {
+    value: {
+      memoizedProps: {},
+      return: {
+        memoizedProps: {
+          message: { id },
+        },
+      },
+    },
+  })
 }
 
 async function waitFor(predicate: () => boolean): Promise<void> {

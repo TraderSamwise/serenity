@@ -54,6 +54,57 @@ describe('background worker logic', () => {
     expect(JSON.stringify(response)).not.toContain('insult')
   })
 
+  it('collapses repeated Twitch chat messages to one proxy classification and reuses the cache', async () => {
+    const cache = new MemoryLocalVectorCache()
+    const proxy = recordingProxy([classification({})])
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+      proxyToken: 'signed-token',
+    })
+    const text = 'same chat wave'
+    const hash = await hashMessageText(text)
+
+    const first = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'twitch_chat',
+        messages: Array.from({ length: 40 }, (_, index) => ({
+          stableId: `twitch-message:${index}`,
+          hash,
+          text,
+        })),
+      },
+      { cache, settingsStore, proxy },
+    )
+    const second = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'twitch_chat',
+        messages: Array.from({ length: 10 }, (_, index) => ({
+          stableId: `twitch-message:repeat-${index}`,
+          hash,
+          text,
+        })),
+      },
+      { cache, settingsStore, proxy },
+    )
+
+    expect(proxy.calls).toEqual([
+      {
+        messages: [text],
+        token: 'signed-token',
+        proxyUrl: 'https://proxy.example',
+      },
+    ])
+    expect(first.verdicts).toHaveLength(40)
+    expect(second.verdicts).toHaveLength(10)
+    expect(first.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
+    expect(second.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
+  })
+
   it('keeps uncached messages hidden when no proxy token is available', async () => {
     const response = await handleClassifyMessages(
       {

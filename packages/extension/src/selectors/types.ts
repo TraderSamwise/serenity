@@ -8,7 +8,7 @@ export interface ServiceSelectorDefinition {
   nestedRowSelectors?: readonly string[]
   textSelector: string
   textMode: 'first' | 'all'
-  stableId: AttributeStableIdRule
+  stableId: AttributeStableIdRule | ReactPropStableIdRule
   excludeStableIdFromLocation?: LocationStableIdRule
 }
 
@@ -16,6 +16,13 @@ export interface AttributeStableIdRule {
   type: 'attribute'
   selector: string
   attribute: string
+  pattern: string
+  prefix: string
+}
+
+export interface ReactPropStableIdRule {
+  type: 'react-prop'
+  propPath: readonly string[]
   pattern: string
   prefix: string
 }

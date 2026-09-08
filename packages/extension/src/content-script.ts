@@ -66,7 +66,9 @@ export class SerenityContentScript {
   }
 
   async scan(): Promise<void> {
-    const extracted = await this.extract()
+    const rows = collectRows(this.document, this.definition)
+    this.pruneKnownRows(rows)
+    const extracted = await this.extract(rows)
     const unsent = extracted.filter((message) => this.sent.get(message.stableId) !== message.hash)
     if (unsent.length === 0) return
 
@@ -88,8 +90,7 @@ export class SerenityContentScript {
     for (const verdict of response.verdicts) this.applyHashVerdict(verdict)
   }
 
-  private async extract(): Promise<ExtractedMessage[]> {
-    const rows = collectRows(this.document, this.definition)
+  private async extract(rows: readonly Element[]): Promise<ExtractedMessage[]> {
     const messages: ExtractedMessage[] = []
     for (const row of rows) {
       if (isExcludedLocationRow(row, this.definition, this.document.location.href)) continue
@@ -124,6 +125,20 @@ export class SerenityContentScript {
       (row) => deriveStableId(row, this.definition, this.document.location.href) === stableId,
     )
   }
+
+  private pruneKnownRows(rows: readonly Element[]): void {
+    const currentStableIds = new Set<string>()
+    for (const row of rows) {
+      const stableId = deriveStableId(row, this.definition, this.document.location.href)
+      if (stableId !== null) currentStableIds.add(stableId)
+    }
+    for (const stableId of this.stableIdToHash.keys()) {
+      if (!currentStableIds.has(stableId)) this.stableIdToHash.delete(stableId)
+    }
+    for (const stableId of this.sent.keys()) {
+      if (!currentStableIds.has(stableId)) this.sent.delete(stableId)
+    }
+  }
 }
 
 export function activeSelectorDefinition(
@@ -151,6 +166,7 @@ export function deriveStableId(
   definition: ServiceSelectorDefinition,
   locationHref: string,
 ): string | null {
+  if (definition.stableId.type === 'react-prop') return deriveReactPropStableId(row, definition)
   return deriveAttributeStableId(row, definition)
 }
 
@@ -172,6 +188,7 @@ function deriveAttributeStableId(
   row: Element,
   definition: ServiceSelectorDefinition,
 ): string | null {
+  if (definition.stableId.type !== 'attribute') return null
   const source = row.querySelector(definition.stableId.selector)
   const value = source?.getAttribute(definition.stableId.attribute)
   if (value === undefined || value === null) return null
@@ -183,13 +200,31 @@ function deriveAttributeStableId(
   return stableId
 }
 
+function deriveReactPropStableId(
+  row: Element,
+  definition: ServiceSelectorDefinition,
+): string | null {
+  if (definition.stableId.type !== 'react-prop') return null
+  const fiber = reactFiberFor(row)
+  for (let current = fiber; current !== null; current = reactParentFiber(current)) {
+    const value =
+      readPath(reactProps(current, 'memoizedProps'), definition.stableId.propPath) ??
+      readPath(reactProps(current, 'pendingProps'), definition.stableId.propPath)
+    if (typeof value !== 'string') continue
+
+    const match = new RegExp(definition.stableId.pattern).exec(value)
+    if (match?.[1] !== undefined) return `${definition.stableId.prefix}${decodeURIComponent(match[1])}`
+  }
+  return null
+}
+
 export function isExcludedLocationRow(
   row: Element,
   definition: ServiceSelectorDefinition,
   locationHref: string,
 ): boolean {
   const current = deriveLocationStableId(definition, locationHref)
-  return current !== null && deriveAttributeStableId(row, definition) === current
+  return current !== null && deriveStableId(row, definition, locationHref) === current
 }
 
 function deriveLocationStableId(
@@ -207,6 +242,34 @@ function extractText(row: Element, definition: ServiceSelectorDefinition): strin
   const values = textNodes.map((node) => node.textContent?.trim() ?? '').filter(Boolean)
   if (values.length === 0) return null
   return definition.textMode === 'first' ? values[0]! : values.join('\n')
+}
+
+type ReactFiber = {
+  return?: ReactFiber | null
+  pendingProps?: unknown
+  memoizedProps?: unknown
+}
+
+function reactFiberFor(row: Element): ReactFiber | null {
+  const name = Object.getOwnPropertyNames(row).find((property) => property.startsWith('__reactFiber$'))
+  return name === undefined ? null : ((row as unknown as Record<string, ReactFiber | undefined>)[name] ?? null)
+}
+
+function reactParentFiber(fiber: ReactFiber): ReactFiber | null {
+  return fiber.return ?? null
+}
+
+function reactProps(fiber: ReactFiber, key: 'memoizedProps' | 'pendingProps'): unknown {
+  return fiber[key]
+}
+
+function readPath(source: unknown, path: readonly string[]): unknown {
+  let current = source
+  for (const segment of path) {
+    if (current === null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
 }
 
 function hideRow(row: Element, state: 'awaiting-id' | 'awaiting-verdict'): void {
