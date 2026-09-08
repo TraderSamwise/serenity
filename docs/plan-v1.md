@@ -114,11 +114,15 @@ Pure function, `evaluate(classification, ruleset) → verdict`, in
    message visible.
 3. Remaining harm axes against per-preset thresholds, skipping the site's
    `ignore` list.
-4. Sentiment floor only with corroboration: hide only when sentiment is at or
-   below the preset floor and at least one non-ignored harm axis is at or above
-   its own threshold multiplied by the preset's corroboration ratio. Tone alone
-   was hiding substantive criticism, so sentiment now needs a harm signal.
-5. Low confidence → the preset decides (aggressive presets hide).
+4. Otherwise clean.
+
+Sentiment-floor and low-confidence decision steps were removed after measuring
+314 cached vectors, including 60 probes written specifically to trigger those
+rules. Both fired zero times under the default aggressive preset. The
+confidence signal is degenerate for `gpt-5-mini-2025-08-07`: the minimum score
+measured was 0.65, with mass around 0.85-0.92 even on deliberately ambiguous
+input. `sentiment`, `targeted`, and `confidence` remain raw cached fields so a
+future rule can be reintroduced and replayed without re-classifying.
 
 Presets: `nuclear`, `aggressive` (default), `balanced`, `off`. Site profiles
 differ only by `ignore` — the NSFW profile ignores `sexual_explicit` and keeps

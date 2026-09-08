@@ -114,57 +114,6 @@ describe('evaluate', () => {
     expect(evaluate(classification, PRESETS.balanced).hide).toBe(false)
   })
 
-  it('low confidence behavior differs by preset', () => {
-    const classification = cleanClassification({ confidence: 0.4 })
-
-    expect(evaluate(classification, PRESETS.aggressive)).toMatchObject({
-      hide: true,
-      reason: { kind: 'low_confidence' },
-    })
-    expect(evaluate(classification, PRESETS.balanced)).toMatchObject({
-      hide: false,
-      reason: { kind: 'low_confidence' },
-    })
-  })
-
-  it('sentiment floor hides hostile messages', () => {
-    const verdict = evaluate(
-      cleanClassification({
-        sentiment: -0.7,
-        scores: { insult: 0.4 },
-      }),
-      PRESETS.aggressive,
-    )
-
-    expect(verdict.hide).toBe(true)
-    expect(verdict.reason).toMatchObject({ kind: 'sentiment', axis: 'insult' })
-  })
-
-  it('sentiment floor does not hide tone without corroborating harm', () => {
-    const verdict = evaluate(cleanClassification({ sentiment: -0.7 }), PRESETS.aggressive)
-
-    expect(verdict.hide).toBe(false)
-    expect(verdict.reason).toMatchObject({ kind: 'clean' })
-  })
-
-  it('changing sentiment corroboration ratio changes verdicts without reclassification', () => {
-    const classification = cleanClassification({
-      sentiment: -0.5,
-      scores: { insult: 0.3 },
-    })
-    const permissiveRatio = {
-      ...PRESETS.aggressive,
-      sentimentCorroborationRatio: 0.5,
-    }
-    const stricterRatio = {
-      ...PRESETS.aggressive,
-      sentimentCorroborationRatio: 0.6,
-    }
-
-    expect(evaluate(classification, permissiveRatio).hide).toBe(true)
-    expect(evaluate(classification, stricterRatio).hide).toBe(false)
-  })
-
   it('off preset never hides even with every axis maxed out', () => {
     const scores = Object.fromEntries(
       [...HARM_AXES, ...PROTECTIVE_AXES].map((axis: ScoredAxis) => [axis, 1]),
