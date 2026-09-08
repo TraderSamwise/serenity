@@ -10,7 +10,9 @@ import type {
 import {
   SerenityContentScript,
   activeSelectorDefinition,
+  activeSelectorDefinitions,
   deriveStableId,
+  installSerenityContentScripts,
   isExcludedLocationRow,
 } from '../src/content-script'
 import { hashMessageText } from '../src/hash'
@@ -18,6 +20,7 @@ import {
   TWITCH_CHAT_SELECTORS,
   X_OWN_POST_COMMENT_SELECTORS,
   YOUTUBE_COMMENT_SELECTORS,
+  YOUTUBE_LIVE_CHAT_SELECTORS,
 } from '../src/selectors'
 import type { RuntimeMessenger } from '../src/content-script'
 
@@ -206,6 +209,137 @@ describe('YouTube comments content script', () => {
   })
 })
 
+describe('YouTube live chat content script', () => {
+  it('runs comments and live chat as separate selector definitions on watch pages', () => {
+    expect(activeSelectorDefinitions('https://www.youtube.com/watch?v=abc123')).toEqual([
+      YOUTUBE_COMMENT_SELECTORS,
+      YOUTUBE_LIVE_CHAT_SELECTORS,
+    ])
+  })
+
+  it('extracts live chat rows from the same-origin iframe and ignores system renderers', async () => {
+    const dom = youtubeLiveChatDom()
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        { stableId: 'youtube-live-chat:yt-live-1', hide: false },
+        { stableId: 'youtube-live-chat:yt-live-2', hide: true },
+      ],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_LIVE_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const frameDocument = iframeDocument(dom)
+    const rows = [
+      ...frameDocument.querySelectorAll('yt-live-chat-text-message-renderer[id]'),
+    ] as HTMLElement[]
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('youtube_live_chat')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'youtube-live-chat:yt-live-1',
+        hash: await hashMessageText('First live chat line'),
+        text: 'First live chat line',
+      },
+      {
+        stableId: 'youtube-live-chat:yt-live-2',
+        hash: await hashMessageText('Second live chat line'),
+        text: 'Second live chat line',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('shown')
+    expect(rows[1]!.dataset.serenityHidden).toBe('verdict')
+    expect(frameDocument.querySelectorAll('yt-live-chat-viewer-engagement-message-renderer')).toHaveLength(1)
+
+    const source = await readFile(contentScriptPath, 'utf8')
+    expect(source).not.toContain('youtube_live_chat')
+    expect(source).not.toContain('YOUTUBE_LIVE')
+  })
+
+  it('installs multiple watch-page service instances without conflating service ids', async () => {
+    const dom = youtubeWatchDom()
+    writeIframeDocument(
+      dom,
+      `<yt-live-chat-renderer>
+        <div id="items">
+          <yt-live-chat-text-message-renderer id="yt-live-1">
+            <span id="author-name">author</span>
+            <span id="message">First live chat line</span>
+          </yt-live-chat-text-message-renderer>
+        </div>
+      </yt-live-chat-renderer>`,
+    )
+    const runtime = recordingRuntime(async (message) => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: (message as ClassifyMessagesRequest).messages.map((item) => ({
+        stableId: item.stableId,
+        hide: false,
+      })),
+    }))
+
+    const scripts = installSerenityContentScripts(
+      dom.window.document,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    await Promise.all(scripts.map((script) => script.scan()))
+
+    expect(scripts).toHaveLength(2)
+    expect(runtime.calls.map((message) => (message as ClassifyMessagesRequest).serviceId).sort()).toEqual([
+      'youtube_comments',
+      'youtube_live_chat',
+    ])
+  })
+
+  it('prunes live-chat iframe rows removed while classification is in flight', async () => {
+    const dom = youtubeLiveChatDom()
+    let resolveResponse: (response: ClassifyMessagesResponse) => void = () => {}
+    const pending = new Promise<ClassifyMessagesResponse>((resolve) => {
+      resolveResponse = resolve
+    })
+    const runtime = recordingRuntime(async () => pending)
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_LIVE_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const frameDocument = iframeDocument(dom)
+
+    const scan = script.scan()
+    await waitFor(() => runtime.calls.length === 1)
+    frameDocument
+      .querySelectorAll('yt-live-chat-text-message-renderer[id]')
+      .forEach((row) => row.remove())
+    await script.scan()
+
+    const internals = script as unknown as {
+      stableIdToHash: Map<string, string>
+      sent: Map<string, string>
+    }
+    expect(internals.stableIdToHash.size).toBe(0)
+    expect(internals.sent.size).toBe(0)
+
+    resolveResponse({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [{ stableId: 'youtube-live-chat:yt-live-1', hide: false }],
+    })
+    await scan
+
+    expect(frameDocument.querySelectorAll('yt-live-chat-text-message-renderer[id]')).toHaveLength(0)
+  })
+})
+
 describe('Twitch chat content script', () => {
   it('uses the Twitch message UUID from React props and ignores system rows by selector', () => {
     const dom = twitchChatDom()
@@ -309,6 +443,36 @@ describe('Twitch chat content script', () => {
 
     expect(scroller.querySelectorAll('[data-a-target="chat-line-message"]')).toHaveLength(0)
   })
+
+  it('fails closed when the Twitch React message id is absent', async () => {
+    const dom = new JSDOM(
+      `<!doctype html>
+        <div data-a-target="chat-scroller">
+          <div data-a-target="chat-line-message" data-a-user="first">
+            <span data-a-target="chat-message-text">Missing id line</span>
+          </div>
+        </div>`,
+      { url: 'https://www.twitch.tv/live_channel' },
+    )
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      TWITCH_CHAT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const row = dom.window.document.querySelector('[data-a-target="chat-line-message"]') as HTMLElement
+
+    await script.scan()
+
+    expect(runtime.calls).toEqual([])
+    expect(row.style.display).toBe('none')
+    expect(row.dataset.serenityHidden).toBe('awaiting-id')
+  })
 })
 
 function xStatusDom(): JSDOM {
@@ -359,6 +523,73 @@ function youtubeCommentsDom(): JSDOM {
       </ytd-watch-flexy>`,
     { url: 'https://www.youtube.com/watch?v=abc123' },
   )
+}
+
+function youtubeLiveChatDom(): JSDOM {
+  const dom = youtubeWatchDom()
+  writeIframeDocument(
+    dom,
+    `<yt-live-chat-app>
+      <yt-live-chat-renderer>
+        <div id="items">
+          <yt-live-chat-viewer-engagement-message-renderer id="system-row">
+            <div id="content">System row</div>
+          </yt-live-chat-viewer-engagement-message-renderer>
+          <yt-live-chat-text-message-renderer id="yt-live-1">
+            <span id="author-name">first</span>
+            <span id="message">First live chat line</span>
+          </yt-live-chat-text-message-renderer>
+          <yt-live-chat-text-message-renderer id="yt-live-2">
+            <span id="author-name">second</span>
+            <span id="message">Second live chat line</span>
+          </yt-live-chat-text-message-renderer>
+        </div>
+      </yt-live-chat-renderer>
+    </yt-live-chat-app>`,
+  )
+  return dom
+}
+
+function youtubeWatchDom(): JSDOM {
+  const dom = new JSDOM(
+    `<!doctype html>
+      <ytd-watch-flexy>
+        <ytd-comments id="comments">
+          <ytd-item-section-renderer id="sections">
+            <ytd-comment-thread-renderer>
+              <div id="comment-container">
+                <ytd-comment-view-model id="comment">
+                  <a href="/watch?v=abc123&lc=UgxParent.001"></a>
+                  <yt-formatted-string id="content-text">Parent comment text</yt-formatted-string>
+                </ytd-comment-view-model>
+              </div>
+            </ytd-comment-thread-renderer>
+          </ytd-item-section-renderer>
+        </ytd-comments>
+        <ytd-live-chat-frame id="chat">
+          <iframe id="chatframe"></iframe>
+        </ytd-live-chat-frame>
+      </ytd-watch-flexy>`,
+    {
+      resources: 'usable',
+      url: 'https://www.youtube.com/watch?v=abc123',
+    },
+  )
+  return dom
+}
+
+function writeIframeDocument(dom: JSDOM, html: string): void {
+  const frameDocument = iframeDocument(dom)
+  frameDocument.open()
+  frameDocument.write(`<!doctype html>${html}`)
+  frameDocument.close()
+}
+
+function iframeDocument(dom: JSDOM): Document {
+  const frame = dom.window.document.querySelector('iframe#chatframe') as HTMLIFrameElement | null
+  const frameDocument = frame?.contentDocument
+  if (frameDocument === undefined || frameDocument === null) throw new Error('Expected iframe document.')
+  return frameDocument
 }
 
 function twitchChatDom(): JSDOM {

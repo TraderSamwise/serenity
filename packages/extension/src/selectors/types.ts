@@ -3,6 +3,7 @@ import type { ServiceId } from '@serenity/core'
 export interface ServiceSelectorDefinition {
   serviceId: ServiceId
   urlPattern: string
+  frameSelector?: string
   containerSelector: string
   rowSelector: string
   nestedRowSelectors?: readonly string[]
@@ -14,7 +15,7 @@ export interface ServiceSelectorDefinition {
 
 export interface AttributeStableIdRule {
   type: 'attribute'
-  selector: string
+  selector?: string
   attribute: string
   pattern: string
   prefix: string

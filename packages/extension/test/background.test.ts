@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { HIDE_OPTIMISTICALLY } from '@serenity/core'
-import type { Classification } from '@serenity/core'
+import type { Classification, ServiceId } from '@serenity/core'
 import {
   handleRuntimeMessage,
   handleClassifyMessages,
@@ -54,7 +54,9 @@ describe('background worker logic', () => {
     expect(JSON.stringify(response)).not.toContain('insult')
   })
 
-  it('collapses repeated Twitch chat messages to one proxy classification and reuses the cache', async () => {
+  it.each(['twitch_chat', 'youtube_live_chat'] satisfies ServiceId[])(
+    'collapses repeated %s messages to one proxy classification and reuses the cache',
+    async (serviceId) => {
     const cache = new MemoryLocalVectorCache()
     const proxy = recordingProxy([classification({})])
     const settingsStore = new MemorySettingsStore({
@@ -70,9 +72,9 @@ describe('background worker logic', () => {
     const first = await handleClassifyMessages(
       {
         type: 'serenity.classifyMessages',
-        serviceId: 'twitch_chat',
+        serviceId,
         messages: Array.from({ length: 40 }, (_, index) => ({
-          stableId: `twitch-message:${index}`,
+          stableId: `${serviceId}:${index}`,
           hash,
           text,
         })),
@@ -82,9 +84,9 @@ describe('background worker logic', () => {
     const second = await handleClassifyMessages(
       {
         type: 'serenity.classifyMessages',
-        serviceId: 'twitch_chat',
+        serviceId,
         messages: Array.from({ length: 10 }, (_, index) => ({
-          stableId: `twitch-message:repeat-${index}`,
+          stableId: `${serviceId}:repeat-${index}`,
           hash,
           text,
         })),
@@ -103,7 +105,8 @@ describe('background worker logic', () => {
     expect(second.verdicts).toHaveLength(10)
     expect(first.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
     expect(second.verdicts.every((verdict) => verdict.hide === false)).toBe(true)
-  })
+    },
+  )
 
   it('keeps uncached messages hidden when no proxy token is available', async () => {
     const response = await handleClassifyMessages(

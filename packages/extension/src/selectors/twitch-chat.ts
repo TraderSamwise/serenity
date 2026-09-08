@@ -5,6 +5,8 @@ const TWITCH_MESSAGE_ID_PATTERN = String.raw`^([0-9a-fA-F-]{36})$`
 export const TWITCH_CHAT_STABLE_ID_STRATEGY = {
   chat:
     'Use the Twitch chat message id from the chat-line React message.id prop. It is a platform UUID and survives row pruning and virtualized DOM reuse.',
+  risk:
+    'React props are not a public Twitch contract. If message.id disappears, extraction must fail closed: keep the row hidden and do not classify with a derived fallback id.',
   systemRows:
     'Select only data-a-target="chat-line-message" rows. Welcome lines, notices, subscriptions, raids, and other system rows use separate targets and are not creator-inbound messages.',
 } as const

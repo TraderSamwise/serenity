@@ -38,8 +38,10 @@ export class SerenityContentScript {
   }
 
   private observeContainer(): void {
-    const container = this.document.querySelector(this.definition.containerSelector)
-    if (container === null) {
+    const container = this.targetDocuments()
+      .map((document) => document.querySelector(this.definition.containerSelector))
+      .find((element): element is Element => element !== null)
+    if (container === undefined) {
       this.observeDocumentUntilContainerExists()
       return
     }
@@ -58,7 +60,11 @@ export class SerenityContentScript {
     this.observer?.disconnect()
     this.observer = new this.observerCtor(() => {
       void this.scan()
-      if (this.document.querySelector(this.definition.containerSelector) !== null) {
+      if (
+        this.targetDocuments().some(
+          (document) => document.querySelector(this.definition.containerSelector) !== null,
+        )
+      ) {
         this.observeContainer()
       }
     })
@@ -66,7 +72,7 @@ export class SerenityContentScript {
   }
 
   async scan(): Promise<void> {
-    const rows = collectRows(this.document, this.definition)
+    const rows = collectRows(this.targetDocuments(), this.definition)
     this.pruneKnownRows(rows)
     const extracted = await this.extract(rows)
     const unsent = extracted.filter((message) => this.sent.get(message.stableId) !== message.hash)
@@ -121,7 +127,7 @@ export class SerenityContentScript {
   }
 
   private currentRowsForStableId(stableId: string): Element[] {
-    return collectRows(this.document, this.definition).filter(
+    return collectRows(this.targetDocuments(), this.definition).filter(
       (row) => deriveStableId(row, this.definition, this.document.location.href) === stableId,
     )
   }
@@ -139,13 +145,27 @@ export class SerenityContentScript {
       if (!currentStableIds.has(stableId)) this.sent.delete(stableId)
     }
   }
+
+  private targetDocuments(): Document[] {
+    if (this.definition.frameSelector === undefined) return [this.document]
+    return Array.from(this.document.querySelectorAll(this.definition.frameSelector))
+      .map((frame) => frameDocument(frame))
+      .filter((document): document is Document => document !== null)
+  }
 }
 
 export function activeSelectorDefinition(
   locationHref: string,
   definitions: readonly ServiceSelectorDefinition[] = SERVICE_SELECTOR_DEFINITIONS,
 ): ServiceSelectorDefinition | null {
-  return definitions.find((definition) => new RegExp(definition.urlPattern).test(locationHref)) ?? null
+  return activeSelectorDefinitions(locationHref, definitions)[0] ?? null
+}
+
+export function activeSelectorDefinitions(
+  locationHref: string,
+  definitions: readonly ServiceSelectorDefinition[] = SERVICE_SELECTOR_DEFINITIONS,
+): ServiceSelectorDefinition[] {
+  return definitions.filter((definition) => new RegExp(definition.urlPattern).test(locationHref))
 }
 
 export function installSerenityContentScript(
@@ -161,6 +181,18 @@ export function installSerenityContentScript(
   return script
 }
 
+export function installSerenityContentScripts(
+  document: Document,
+  runtime: RuntimeMessenger,
+  observerCtor: typeof MutationObserver = MutationObserver,
+): SerenityContentScript[] {
+  return activeSelectorDefinitions(document.location.href).map((definition) => {
+    const script = new SerenityContentScript(document, definition, runtime, observerCtor)
+    script.start()
+    return script
+  })
+}
+
 export function deriveStableId(
   row: Element,
   definition: ServiceSelectorDefinition,
@@ -170,15 +202,17 @@ export function deriveStableId(
   return deriveAttributeStableId(row, definition)
 }
 
-function collectRows(document: Document, definition: ServiceSelectorDefinition): Element[] {
+function collectRows(documents: readonly Document[], definition: ServiceSelectorDefinition): Element[] {
   const selectors = [definition.rowSelector, ...(definition.nestedRowSelectors ?? [])]
   const seen = new Set<Element>()
   const rows: Element[] = []
-  for (const selector of selectors) {
-    for (const row of document.querySelectorAll(selector)) {
-      if (seen.has(row)) continue
-      seen.add(row)
-      rows.push(row)
+  for (const document of documents) {
+    for (const selector of selectors) {
+      for (const row of document.querySelectorAll(selector)) {
+        if (seen.has(row)) continue
+        seen.add(row)
+        rows.push(row)
+      }
     }
   }
   return rows
@@ -189,7 +223,8 @@ function deriveAttributeStableId(
   definition: ServiceSelectorDefinition,
 ): string | null {
   if (definition.stableId.type !== 'attribute') return null
-  const source = row.querySelector(definition.stableId.selector)
+  const source =
+    definition.stableId.selector === undefined ? row : row.querySelector(definition.stableId.selector)
   const value = source?.getAttribute(definition.stableId.attribute)
   if (value === undefined || value === null) return null
 
@@ -272,6 +307,16 @@ function readPath(source: unknown, path: readonly string[]): unknown {
   return current
 }
 
+function frameDocument(frame: Element): Document | null {
+  const view = frame.ownerDocument.defaultView
+  if (view === null || !(frame instanceof view.HTMLIFrameElement)) return null
+  try {
+    return frame.contentDocument
+  } catch {
+    return null
+  }
+}
+
 function hideRow(row: Element, state: 'awaiting-id' | 'awaiting-verdict'): void {
   const html = row as HTMLElement
   html.dataset.serenityHidden = state
@@ -295,8 +340,8 @@ if (typeof chrome !== 'undefined' && typeof document !== 'undefined') {
       return chrome.runtime.sendMessage(message)
     },
   }
-  const script = installSerenityContentScript(document, runtime)
+  const scripts = installSerenityContentScripts(document, runtime)
   chrome.storage.onChanged.addListener(() => {
-    void script?.refilter()
+    for (const script of scripts) void script.refilter()
   })
 }
