@@ -11,6 +11,7 @@ export const YOUTUBE_LIVE_CHAT_STABLE_ID_STRATEGY = {
 
 export const YOUTUBE_LIVE_CHAT_SELECTORS = {
   serviceId: 'youtube_live_chat',
+  surfaceType: 'stream',
   urlPattern: String.raw`^https://www\.youtube\.com/watch(?:\?|$)`,
   frameSelector: 'ytd-live-chat-frame iframe#chatframe',
   containerSelector: 'yt-live-chat-renderer #items',

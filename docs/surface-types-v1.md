@@ -61,13 +61,21 @@ Surfaces: X DMs, Instagram DMs, OnlyFans DMs, Fansly DMs.
 The curtain must go up on route change, before messages paint. Suppressing after
 render is the 200ms flash the plan forbids.
 
-**Open problem, unsolved:** opening a thread to scan it marks it read on the
-platform. That is an observable side effect and it tells an abuser their message
-was read, which is the opposite of what this product is for. Worse, backing out
-does not undo it. Any Type C implementation must establish whether the read
-receipt fires on route change or on render, and whether the scan can happen
-without it. If it cannot, that is a real cost of this design and Sam decides
-whether to accept it.
+**Read receipts: accepted, decided 2026-09-08.** Opening a thread to scan it
+marks it read on the platform, and backing out does not undo it. Sam ruled that
+this is acceptable, and the reasoning is worth keeping because it will be
+re-litigated: a thread is only ever opened when its preview PASSED, and a human
+creator would have opened and read that same thread to discover the abuse for
+themselves. The receipt fires either way. Serenity is not making the creator's
+position worse, it is only reaching the same conclusion faster and without them
+reading it.
+
+A better system exists and is deliberately deferred: a MAIN-world content script
+can patch fetch and XHR before the page's own code runs, classify messages
+before the app renders them, and drop the mark-as-read request outright. That
+removes the receipt entirely and subsumes the Type B buffer. It is also coupled
+to API shape rather than DOM shape, can desync the app's unread counts, and is a
+larger change than the curtain. Build the simple thing first.
 
 ## Type D — Summary list
 

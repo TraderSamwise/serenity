@@ -2,6 +2,7 @@ import type { ServiceId } from '@serenity/core'
 
 export interface ServiceSelectorDefinition {
   serviceId: ServiceId
+  surfaceType: SurfaceType
   urlPattern: string
   frameSelector?: string
   containerSelector: string
@@ -12,6 +13,8 @@ export interface ServiceSelectorDefinition {
   stableId: AttributeStableIdRule | ReactPropStableIdRule | VuePropStableIdRule
   excludeStableIdFromLocation?: LocationStableIdRule
 }
+
+export type SurfaceType = 'item_feed' | 'stream' | 'gated_thread' | 'summary_list'
 
 export interface AttributeStableIdRule {
   type: 'attribute'

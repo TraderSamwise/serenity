@@ -11,6 +11,7 @@ export const YOUTUBE_COMMENT_STABLE_ID_STRATEGY = {
 
 export const YOUTUBE_COMMENT_SELECTORS = {
   serviceId: 'youtube_comments',
+  surfaceType: 'item_feed',
   urlPattern: String.raw`^https://www\.youtube\.com/watch(?:\?|$)`,
   containerSelector: 'ytd-comments#comments',
   rowSelector: 'ytd-comment-thread-renderer #comment-container > ytd-comment-view-model#comment',

@@ -18,6 +18,7 @@ import {
 import { hashMessageText } from '../src/hash'
 import {
   ONLYFANS_COMMENT_SELECTORS,
+  ONLYFANS_DM_LIST_SELECTORS,
   ONLYFANS_DM_SELECTORS,
   TWITCH_CHAT_SELECTORS,
   X_OWN_POST_COMMENT_SELECTORS,
@@ -604,6 +605,82 @@ describe('Twitch chat content script', () => {
 })
 
 describe('OnlyFans content script', () => {
+  it('treats the DM conversation list as a summary-list surface keyed by last message id', async () => {
+    const dom = onlyFansDmListDom()
+    const rows = [...dom.window.document.querySelectorAll('.b-chats__item')] as HTMLElement[]
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [
+        { stableId: 'onlyfans-message:11139499990336', hide: true, status: 'classified' },
+        { stableId: 'onlyfans-message:11139463791366', hide: false, status: 'classified' },
+      ],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      ONLYFANS_DM_LIST_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    expect(activeSelectorDefinition(dom.window.location.href)).toBe(ONLYFANS_DM_LIST_SELECTORS)
+    expect(ONLYFANS_DM_LIST_SELECTORS.surfaceType).toBe('summary_list')
+    expect(deriveStableId(rows[0]!, ONLYFANS_DM_LIST_SELECTORS, dom.window.location.href)).toBe(
+      'onlyfans-message:11139499990336',
+    )
+
+    await script.scan()
+
+    expect(runtime.calls).toHaveLength(1)
+    const sent = runtime.calls[0] as ClassifyMessagesRequest
+    expect(sent.serviceId).toBe('onlyfans_dms')
+    expect(sent.messages).toEqual([
+      {
+        stableId: 'onlyfans-message:11139499990336',
+        hash: await hashMessageText('First preview fixture'),
+        text: 'First preview fixture',
+      },
+      {
+        stableId: 'onlyfans-message:11139463791366',
+        hash: await hashMessageText('Second preview fixture'),
+        text: 'Second preview fixture',
+      },
+    ])
+    expect(rows[0]!.dataset.serenityHidden).toBe('verdict')
+    expect(rows[0]!.style.display).toBe('none')
+    expect(rows[1]!.dataset.serenityHidden).toBe('shown')
+  })
+
+  it('fails closed on DM list rows when the preview message id is absent', async () => {
+    const dom = onlyFansDmListDom()
+    const row = dom.window.document.querySelector('.b-chats__item') as HTMLElement
+    delete (row as unknown as { __vue__?: unknown }).__vue__
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      optimisticHide: true,
+      verdicts: [],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      ONLYFANS_DM_LIST_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+
+    await script.scan()
+
+    expect(runtime.calls).toEqual([])
+    expect(row.style.display).toBe('none')
+    expect(row.dataset.serenityHidden).toBe('awaiting-id')
+  })
+
+  it('runs DM list and open-thread definitions together on chat routes', () => {
+    expect(activeSelectorDefinitions('https://onlyfans.com/my/chats/chat/564580593/')).toEqual([
+      ONLYFANS_DM_LIST_SELECTORS,
+      ONLYFANS_DM_SELECTORS,
+    ])
+  })
+
   it('models comments as a separate NSFW service with Vue comment ids', async () => {
     const dom = onlyFansCommentDom()
     const rows = [...dom.window.document.querySelectorAll('.b-comments__item')] as HTMLElement[]
