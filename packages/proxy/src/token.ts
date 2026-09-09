@@ -18,7 +18,7 @@ function signPayload(encodedPayload: string, secret: string): string {
   return createHmac('sha256', secret).update(encodedPayload).digest('base64url')
 }
 
-function isValidUuid(value: string): boolean {
+export function isValidInstallId(value: string): boolean {
   return UUID_PATTERN.test(value)
 }
 
@@ -30,7 +30,7 @@ export function issueInstallToken(
   installId: string,
   options: { secret: string; now?: number },
 ): string {
-  if (!isValidUuid(installId)) throw new Error('Install ID must be a UUID.')
+  if (!isValidInstallId(installId)) throw new Error('Install ID must be a UUID.')
   const payload: InstallTokenPayload = {
     version: TOKEN_VERSION,
     installId,
@@ -58,7 +58,7 @@ export function verifyInstallToken(token: string, secret: string): string | null
     const payload = JSON.parse(
       Buffer.from(encodedPayload, 'base64url').toString('utf8'),
     ) as InstallTokenPayload
-    if (payload.version !== TOKEN_VERSION || !isValidUuid(payload.installId)) return null
+    if (payload.version !== TOKEN_VERSION || !isValidInstallId(payload.installId)) return null
     return payload.installId
   } catch {
     return null

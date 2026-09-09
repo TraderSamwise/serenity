@@ -66,6 +66,10 @@ export interface ProxyClassifyResponse {
   results: readonly ProxyClassifyResult[]
 }
 
+export interface ProxyRegisterResponse {
+  token: string
+}
+
 export interface PopupStateRequest {
   type: 'serenity.popupState'
 }

@@ -104,7 +104,56 @@ describe('background worker logic', () => {
     },
   )
 
-  it('keeps uncached messages hidden when no proxy token is available', async () => {
+  it('registers on first classification, stores the token, and then classifies', async () => {
+    const cache = new MemoryLocalVectorCache()
+    const proxy = recordingProxy([classification({ insult: 0.2 })], {
+      token: 'registered-token',
+    })
+    const settingsStore = new MemorySettingsStore({
+      defaultPreset: 'aggressive',
+      servicePresetOverrides: {},
+      hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
+      proxyUrl: 'https://proxy.example',
+    })
+    const hash = await hashMessageText('first run text')
+
+    const response = await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'x_dms',
+        messages: [{ hash, text: 'first run text' }],
+      },
+      {
+        cache,
+        settingsStore,
+        proxy,
+        createInstallId: () => '123e4567-e89b-12d3-a456-426614174000',
+      },
+    )
+
+    expect(proxy.registerCalls).toEqual([
+      {
+        installId: '123e4567-e89b-12d3-a456-426614174000',
+        proxyUrl: 'https://proxy.example',
+      },
+    ])
+    expect(proxy.calls).toEqual([
+      {
+        messages: ['first run text'],
+        token: 'registered-token',
+        proxyUrl: 'https://proxy.example',
+      },
+    ])
+    expect(response.verdicts).toEqual([{ hash, hide: false, status: 'classified' }])
+    expect(await settingsStore.get()).toMatchObject({
+      installId: '123e4567-e89b-12d3-a456-426614174000',
+      proxyToken: 'registered-token',
+    })
+  })
+
+  it('keeps uncached messages hidden and retries later when registration fails', async () => {
+    const settingsStore = new MemorySettingsStore()
+    const proxy = recordingProxy([], { registerError: new Error('offline') })
     const response = await handleClassifyMessages(
       {
         type: 'serenity.classifyMessages',
@@ -118,14 +167,49 @@ describe('background worker logic', () => {
       },
       {
         cache: new MemoryLocalVectorCache(),
-        settingsStore: new MemorySettingsStore(),
-        proxy: recordingProxy([]),
+        settingsStore,
+        proxy,
+        createInstallId: () => '123e4567-e89b-12d3-a456-426614174000',
       },
     )
 
     expect(response).toMatchObject({
       verdicts: [{ hide: true, status: 'unclassified', reason: 'no_proxy_token' }],
     })
+    expect(proxy.registerCalls).toHaveLength(1)
+    const failedSettings = await settingsStore.get()
+    expect(failedSettings.installId).toBe('123e4567-e89b-12d3-a456-426614174000')
+    expect(failedSettings).not.toHaveProperty('proxyToken')
+
+    await handleClassifyMessages(
+      {
+        type: 'serenity.classifyMessages',
+        serviceId: 'x_dms',
+        messages: [
+          {
+            hash: await hashMessageText('still unclassified text'),
+            text: 'still unclassified text',
+          },
+        ],
+      },
+      {
+        cache: new MemoryLocalVectorCache(),
+        settingsStore,
+        proxy,
+        createInstallId: () => 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+      },
+    )
+
+    expect(proxy.registerCalls).toEqual([
+      {
+        installId: '123e4567-e89b-12d3-a456-426614174000',
+        proxyUrl: 'http://localhost:8787',
+      },
+      {
+        installId: '123e4567-e89b-12d3-a456-426614174000',
+        proxyUrl: 'http://localhost:8787',
+      },
+    ])
   })
 
   it('short-circuits tier 0 locally without proxy calls or vector cache writes', async () => {
@@ -329,7 +413,8 @@ describe('background worker logic', () => {
       {
         cache: new MemoryLocalVectorCache(),
         settingsStore,
-        proxy: recordingProxy([]),
+        proxy: recordingProxy([], { registerError: new Error('offline') }),
+        createInstallId: () => '123e4567-e89b-12d3-a456-426614174000',
       },
     )
 
@@ -340,20 +425,40 @@ describe('background worker logic', () => {
   })
 })
 
-function recordingProxy(classifications: Classification[]) {
+function recordingProxy(
+  classifications: Classification[],
+  options: { token?: string; registerError?: Error } = {},
+) {
   return recordingProxyResults(
     classifications.map((item) => ({ status: 'classified', classification: item })),
+    options,
   )
 }
 
-function recordingProxyResults(results: ProxyClassifyResult[]) {
+function recordingProxyResults(
+  results: ProxyClassifyResult[],
+  options: { token?: string; registerError?: Error } = {},
+) {
   const calls: Array<{
     messages: readonly string[]
     token: string
     proxyUrl: string
   }> = []
-  const proxy: ProxyClient & { calls: typeof calls } = {
+  const registerCalls: Array<{
+    installId: string
+    proxyUrl: string
+  }> = []
+  const proxy: ProxyClient & {
+    calls: typeof calls
+    registerCalls: typeof registerCalls
+  } = {
     calls,
+    registerCalls,
+    async registerInstall(installId, proxyUrl) {
+      registerCalls.push({ installId, proxyUrl })
+      if (options.registerError !== undefined) throw options.registerError
+      return { token: options.token ?? 'registered-token' }
+    },
     async classify(messages, token, proxyUrl) {
       calls.push({ messages, token, proxyUrl })
       return { results }

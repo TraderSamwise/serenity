@@ -4,6 +4,7 @@ import { createProxyApp } from '../src/http'
 import { issueInstallToken } from '../src/token'
 import { MemoryGlobalHashCache } from '../src/hash-cache'
 import { MemoryQuotaStore } from '../src/quota'
+import { MemoryRegisterLimiter } from '../src/register-limit'
 import { classification, moderation } from './helpers'
 
 const secret = 'proxy-secret'
@@ -36,6 +37,7 @@ describe('Worker fetch handler', () => {
             },
           },
         },
+        registerLimiter: new MemoryRegisterLimiter(10),
       }),
     )
     const response = await worker.fetch(

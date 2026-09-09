@@ -35,6 +35,7 @@ export interface BackgroundDependencies {
   cache: LocalVectorCache
   settingsStore: SettingsStore
   proxy: ProxyClient
+  createInstallId?: () => string
 }
 
 export async function handleRuntimeMessage(
@@ -74,7 +75,7 @@ export async function handleClassifyMessages(
   request: ClassifyMessagesRequest,
   deps: BackgroundDependencies,
 ): Promise<ClassifyMessagesResponse> {
-  const settings = await deps.settingsStore.get()
+  let settings = await deps.settingsStore.get()
   const prepared = await Promise.all(
     request.messages.map(async (message) => ({
       message,
@@ -101,6 +102,10 @@ export async function handleClassifyMessages(
       .map((item) => [item.hash, item.message.text]),
   )
   const proxyResultsByHash = new Map<string, NonClassifiedProxyResult>()
+
+  if (missingByHash.size > 0 && settings.proxyToken === undefined) {
+    settings = await ensureProxyToken(settings, deps)
+  }
 
   if (missingByHash.size > 0 && settings.proxyToken !== undefined) {
     const texts = [...missingByHash.values()]
@@ -218,6 +223,28 @@ export function createChromeBackgroundDependencies(): BackgroundDependencies {
     cache: new IndexedDbLocalVectorCache(),
     settingsStore,
     proxy: new HttpProxyClient(),
+    createInstallId: () => crypto.randomUUID(),
+  }
+}
+
+async function ensureProxyToken(
+  settings: ExtensionSettings,
+  deps: BackgroundDependencies,
+): Promise<ExtensionSettings> {
+  const installId = settings.installId ?? (
+    deps.createInstallId === undefined ? crypto.randomUUID() : deps.createInstallId()
+  )
+  const settingsWithInstallId =
+    settings.installId === installId ? settings : { ...settings, installId }
+  if (settings.installId === undefined) await deps.settingsStore.set(settingsWithInstallId)
+
+  try {
+    const registered = await deps.proxy.registerInstall(installId, settings.proxyUrl)
+    const nextSettings = { ...settingsWithInstallId, proxyToken: registered.token }
+    await deps.settingsStore.set(nextSettings)
+    return nextSettings
+  } catch {
+    return settingsWithInstallId
   }
 }
 

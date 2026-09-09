@@ -3,6 +3,34 @@ import { HttpProxyClient } from '../src/proxy-client'
 import { classification } from './helpers'
 
 describe('proxy client', () => {
+  it('registers an install UUID without an authorization header', async () => {
+    const calls: Array<{ url: string; body: unknown; authorization: string | null }> = []
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const headers = new Headers(init?.headers)
+      calls.push({
+        url: String(url),
+        body: JSON.parse(String(init?.body)),
+        authorization: headers.get('authorization'),
+      })
+      return new Response(JSON.stringify({ token: 'signed-token' }))
+    }
+
+    await expect(
+      new HttpProxyClient(fetchImpl).registerInstall(
+        '123e4567-e89b-12d3-a456-426614174000',
+        'https://proxy.example/base',
+      ),
+    ).resolves.toEqual({ token: 'signed-token' })
+
+    expect(calls).toEqual([
+      {
+        url: 'https://proxy.example/register',
+        body: { installId: '123e4567-e89b-12d3-a456-426614174000' },
+        authorization: null,
+      },
+    ])
+  })
+
   it('sends only message text batches and the install token', async () => {
     const calls: Array<{ url: string; body: unknown; authorization: string | null }> = []
     const fetchImpl: typeof fetch = async (url, init) => {

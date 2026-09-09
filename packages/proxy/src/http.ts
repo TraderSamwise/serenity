@@ -1,6 +1,7 @@
 import { classifyBatch } from './classify'
 import type { ClassifyDependencies } from './classify'
-import { verifyInstallToken } from './token'
+import type { RegisterLimiter } from './register-limit'
+import { issueInstallToken, isValidInstallId, verifyInstallToken } from './token'
 
 export interface ProxyApp {
   fetch(request: Request): Promise<Response>
@@ -9,18 +10,24 @@ export interface ProxyApp {
 export interface ProxyAppOptions {
   tokenSecret: string
   deps: ClassifyDependencies
+  registerLimiter: RegisterLimiter
 }
 
 type ClassifyRequestBody = {
   messages: string[]
 }
 
+type RegisterRequestBody = {
+  installId: string
+}
+
 export function createProxyApp(options: ProxyAppOptions): ProxyApp {
   return {
     async fetch(request) {
       const url = new URL(request.url)
-      if (url.pathname !== '/classify') return json({ error: 'Not found.' }, 404)
       if (request.method === 'OPTIONS') return empty(204)
+      if (url.pathname === '/register') return handleRegister(request, options)
+      if (url.pathname !== '/classify') return json({ error: 'Not found.' }, 404)
       if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
 
       const installId = authenticate(request, options.tokenSecret)
@@ -38,6 +45,18 @@ export function createProxyApp(options: ProxyAppOptions): ProxyApp {
       }
     },
   }
+}
+
+async function handleRegister(request: Request, options: ProxyAppOptions): Promise<Response> {
+  if (request.method !== 'POST') return json({ error: 'Method not allowed.' }, 405)
+  if (!(await options.registerLimiter.allow(request))) {
+    return json({ error: 'Registration rate limit exceeded.' }, 429)
+  }
+
+  const body = await readRegisterBody(request)
+  if (body instanceof Response) return body
+
+  return json({ token: issueInstallToken(body.installId, { secret: options.tokenSecret }) }, 200)
 }
 
 function authenticate(request: Request, secret: string): string | null {
@@ -70,6 +89,26 @@ async function readClassifyBody(request: Request): Promise<ClassifyRequestBody |
   }
 
   return { messages: parsed.messages }
+}
+
+async function readRegisterBody(request: Request): Promise<RegisterRequestBody | Response> {
+  let parsed: unknown
+  try {
+    parsed = await request.json()
+  } catch {
+    return json({ error: 'Request body must be JSON.' }, 400)
+  }
+
+  if (!isRecord(parsed)) return json({ error: 'Request body must be an object.' }, 400)
+  const keys = Object.keys(parsed)
+  if (keys.length !== 1 || keys[0] !== 'installId') {
+    return json({ error: 'Unsupported request field.' }, 400)
+  }
+  if (typeof parsed.installId !== 'string' || !isValidInstallId(parsed.installId)) {
+    return json({ error: 'installId must be a UUID.' }, 400)
+  }
+
+  return { installId: parsed.installId }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

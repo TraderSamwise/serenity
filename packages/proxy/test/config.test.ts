@@ -23,6 +23,7 @@ describe('proxy config', () => {
         SERENITY_PROXY_PER_INSTALL_TIER2_QUOTA: '25',
         SERENITY_PROXY_GLOBAL_TIER2_CEILING: '100',
         SERENITY_PROXY_GLOBAL_TOKEN_CEILING: '5000',
+        SERENITY_PROXY_REGISTER_PER_IP_QUOTA: '12',
       }),
     ).toMatchObject({
       apiKey: 'openai-key',
@@ -32,6 +33,7 @@ describe('proxy config', () => {
       perInstallTier2Quota: 25,
       globalTier2Ceiling: 100,
       globalTokenCeiling: 5000,
+      registerPerIpQuota: 12,
     })
   })
 })

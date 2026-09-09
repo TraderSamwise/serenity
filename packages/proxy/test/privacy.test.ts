@@ -6,6 +6,7 @@ import { createProxyApp } from '../src/http'
 import { FileGlobalHashCache } from '../src/file-hash-cache'
 import { textHash } from '../src/hash-cache'
 import { FileQuotaStore } from '../src/file-quota'
+import { MemoryRegisterLimiter } from '../src/register-limit'
 import { issueInstallToken } from '../src/token'
 import { classification, moderation } from './helpers'
 
@@ -47,6 +48,7 @@ describe('plaintext privacy', () => {
           },
         },
       },
+      registerLimiter: new MemoryRegisterLimiter(10),
     })
 
     const response = await app.fetch(

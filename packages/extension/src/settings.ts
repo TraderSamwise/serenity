@@ -27,7 +27,7 @@ export const DEFAULT_EXTENSION_SETTINGS: ExtensionSettings = {
     byVerdict: 0,
     awaitingVerdict: 0,
   },
-  proxyUrl: 'http://localhost:8787',
+  proxyUrl: 'https://serenity-proxy.m3edge.workers.dev',
 }
 
 export class MemorySettingsStore implements SettingsStore {

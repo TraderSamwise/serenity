@@ -4,6 +4,7 @@ import {
 } from './classify'
 import { createProxyApp } from './http'
 import type { ProxyApp } from './http'
+import { createUpstashRegisterLimiter } from './register-limit'
 import { createUpstashGlobalHashCache } from './upstash-cache'
 import { createUpstashQuotaStore } from './upstash-quota'
 
@@ -18,6 +19,7 @@ export interface ProxyConfig {
   globalTier2Ceiling: number
   globalTokenCeiling: number
   tier2Enabled: boolean
+  registerPerIpQuota: number
 }
 
 export function loadProxyConfig(env: ProxyEnv): ProxyConfig {
@@ -42,6 +44,7 @@ export function loadProxyConfig(env: ProxyEnv): ProxyConfig {
     globalTier2Ceiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TIER2_CEILING, 100000),
     globalTokenCeiling: numberEnv(env.SERENITY_PROXY_GLOBAL_TOKEN_CEILING, 50000000),
     tier2Enabled: env.SERENITY_PROXY_TIER2_ENABLED !== '0',
+    registerPerIpQuota: numberEnv(env.SERENITY_PROXY_REGISTER_PER_IP_QUOTA, 30),
   }
   return config
 }
@@ -67,6 +70,11 @@ export function createDefaultProxyApp(config: ProxyConfig): ProxyApp {
       tier1: openAIModerationClient(config.apiKey),
       tier2: openAIClassifier(config.apiKey),
     },
+    registerLimiter: createUpstashRegisterLimiter({
+      url: config.upstashRedisRestUrl,
+      token: config.upstashRedisRestToken,
+      maxRegistrationsPerIp: config.registerPerIpQuota,
+    }),
   }
   return createProxyApp(options)
 }
