@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DEFAULT_EXTENSION_SETTINGS } from '../src/settings'
 import type { Classification, ProxyClassifyResult, ServiceId } from '@serenity/core'
 import {
   handleRuntimeMessage,
@@ -203,11 +204,11 @@ describe('background worker logic', () => {
     expect(proxy.registerCalls).toEqual([
       {
         installId: '123e4567-e89b-12d3-a456-426614174000',
-        proxyUrl: 'http://localhost:8787',
+        proxyUrl: DEFAULT_EXTENSION_SETTINGS.proxyUrl,
       },
       {
         installId: '123e4567-e89b-12d3-a456-426614174000',
-        proxyUrl: 'http://localhost:8787',
+        proxyUrl: DEFAULT_EXTENSION_SETTINGS.proxyUrl,
       },
     ])
   })

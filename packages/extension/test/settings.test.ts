@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ChromeSettingsStore } from '../src/settings'
+import { ChromeSettingsStore, DEFAULT_EXTENSION_SETTINGS } from '../src/settings'
 
 describe('ChromeSettingsStore', () => {
   it('reads optional proxy identity fields from chrome storage', async () => {
@@ -16,7 +16,7 @@ describe('ChromeSettingsStore', () => {
     } as unknown as chrome.storage.LocalStorageArea
 
     await expect(new ChromeSettingsStore(storage).get()).resolves.toMatchObject({
-      proxyUrl: 'http://localhost:8787',
+      proxyUrl: DEFAULT_EXTENSION_SETTINGS.proxyUrl,
       proxyToken: 'signed-token',
       installId: 'install-id',
       hiddenCounts: { byVerdict: 0, awaitingVerdict: 0 },
