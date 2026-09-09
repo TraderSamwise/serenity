@@ -127,6 +127,95 @@ describe('content script DOM suppression', () => {
     expect(row.dataset.serenityHidden).toBeUndefined()
   })
 
+  it('classifies default-hidden rows when a declared text selector mounts later', async () => {
+    const dom = new JSDOM(
+      `<!doctype html>
+        <ytd-comments id="comments">
+          <ytd-comment-thread-renderer>
+            <div id="comment-container">
+              <ytd-comment-view-model id="comment">
+                <div id="header">Display name 1 day ago</div>
+                <div id="content"></div>
+                <div id="toolbar">Reply</div>
+              </ytd-comment-view-model>
+            </div>
+          </ytd-comment-thread-renderer>
+        </ytd-comments>`,
+      { url: 'https://www.youtube.com/watch?v=abc123' },
+    )
+    const hash = await hashMessageText('Late comment text')
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: [{ hash, hide: false, status: 'classified' }],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      dom.window.MutationObserver,
+    )
+    const row = dom.window.document.querySelector('ytd-comment-view-model#comment') as HTMLElement
+    const content = dom.window.document.querySelector('#content')!
+
+    script.start()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(runtime.calls).toHaveLength(0)
+    expect(row.dataset.serenityHidden).toBeUndefined()
+
+    const text = dom.window.document.createElement('span')
+    text.className = 'ytAttributedStringHost'
+    text.textContent = 'Late comment text'
+    content.append(text)
+
+    await waitFor(() => runtime.calls.length === 1)
+    expect((runtime.calls[0] as ClassifyMessagesRequest).messages[0]).toEqual({
+      hash,
+      text: 'Late comment text',
+    })
+    expect(row.dataset.serenityHidden).toBe('shown')
+    script.stop()
+  })
+
+  it('uses scroll as a generic scan trigger for lazy rows missed by mutation observation', async () => {
+    const dom = new JSDOM(
+      `<!doctype html><ytd-comments id="comments"></ytd-comments>`,
+      { url: 'https://www.youtube.com/watch?v=abc123' },
+    )
+    const hash = await hashMessageText('Scroll-mounted comment')
+    const runtime = recordingRuntime(async () => ({
+      type: 'serenity.classifyMessagesResult',
+      verdicts: [{ hash, hide: false, status: 'classified' }],
+    }))
+    const script = new SerenityContentScript(
+      dom.window.document,
+      YOUTUBE_COMMENT_SELECTORS,
+      runtime,
+      NoopMutationObserver as unknown as typeof MutationObserver,
+    )
+    const comments = dom.window.document.querySelector('ytd-comments#comments')!
+
+    script.start()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(runtime.calls).toHaveLength(0)
+
+    comments.insertAdjacentHTML(
+      'beforeend',
+      `<ytd-comment-thread-renderer>
+        <div id="comment-container">
+          <ytd-comment-view-model id="comment">
+            <span class="ytAttributedStringHost">Scroll-mounted comment</span>
+          </ytd-comment-view-model>
+        </div>
+      </ytd-comment-thread-renderer>`,
+    )
+    dom.window.dispatchEvent(new dom.window.Event('scroll'))
+
+    await waitFor(() => runtime.calls.length === 1)
+    const row = dom.window.document.querySelector('ytd-comment-view-model#comment') as HTMLElement
+    expect(row.dataset.serenityHidden).toBe('shown')
+    script.stop()
+  })
+
   it('refilters by rescanning present DOM rows with no stored row identity', async () => {
     const dom = xStatusDom()
     const hash = await hashMessageText('Constructive but blunt reply')
@@ -671,5 +760,17 @@ function recordingRuntime(
       calls.push(message)
       return reply(message)
     },
+  }
+}
+
+class NoopMutationObserver {
+  constructor(_callback: MutationCallback) {}
+
+  observe(): void {}
+
+  disconnect(): void {}
+
+  takeRecords(): MutationRecord[] {
+    return []
   }
 }

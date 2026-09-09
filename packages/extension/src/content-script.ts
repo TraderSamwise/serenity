@@ -15,6 +15,8 @@ export class SerenityContentScript {
   private processed = new WeakSet<Element>()
   private observers: MutationObserver[] = []
   private observedDocuments = new WeakSet<Document>()
+  private observedScrollDocuments = new WeakSet<Document>()
+  private scrollListeners: Array<{ target: EventTarget; listener: () => void }> = []
   private retryTimer: ReturnType<typeof setTimeout> | null = null
   private scanQueued = false
 
@@ -36,6 +38,11 @@ export class SerenityContentScript {
     for (const observer of this.observers) observer.disconnect()
     this.observers = []
     this.observedDocuments = new WeakSet<Document>()
+    for (const { target, listener } of this.scrollListeners) {
+      target.removeEventListener('scroll', listener, true)
+    }
+    this.scrollListeners = []
+    this.observedScrollDocuments = new WeakSet<Document>()
     if (this.retryTimer !== null) clearTimeout(this.retryTimer)
     this.retryTimer = null
     this.scanQueued = false
@@ -90,12 +97,15 @@ export class SerenityContentScript {
     const messages: ExtractedRow[] = []
     for (const row of rows) {
       if (this.processed.has(row)) continue
-      this.processed.add(row)
       const text = extractText(row, this.definition)
       if (text === null) {
-        if (this.definition.textSelector === undefined) applyVerdict(row, false)
+        if (this.definition.textSelector === undefined) {
+          this.processed.add(row)
+          applyVerdict(row, false)
+        }
         continue
       }
+      this.processed.add(row)
       messages.push({ row, hash: await hashMessageText(text), text })
     }
     return messages
@@ -114,7 +124,20 @@ export class SerenityContentScript {
       observer.observe(root, { childList: true, subtree: true })
       this.observers.push(observer)
       this.observedDocuments.add(targetDocument)
+      this.observeScrollDocument(targetDocument)
     }
+  }
+
+  private observeScrollDocument(document: Document): void {
+    if (this.observedScrollDocuments.has(document)) return
+    const listener = () => this.queueScan()
+    document.addEventListener('scroll', listener, true)
+    this.scrollListeners.push({ target: document, listener })
+    document.defaultView?.addEventListener('scroll', listener, true)
+    if (document.defaultView !== null) {
+      this.scrollListeners.push({ target: document.defaultView, listener })
+    }
+    this.observedScrollDocuments.add(document)
   }
 
   private queueScan(): void {
