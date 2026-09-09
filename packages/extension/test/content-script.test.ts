@@ -44,7 +44,7 @@ describe('content script DOM suppression', () => {
     expect(dom.window.document.querySelector('style[id^="serenity-default-hide-x_own_post_comments"]')).not.toBeNull()
     expect(reply.matches('article[data-testid="tweet"]:not([data-serenity-hidden="shown"])')).toBe(true)
     expect(reply.style.display).toBe('')
-    expect(reply.dataset.serenityHidden).toBeUndefined()
+    expect(reply.dataset.serenityHidden).toBe('pending')
     script.stop()
   })
 
@@ -391,6 +391,11 @@ describe('content script DOM suppression', () => {
         servicePresetOverrides: { oldValue: {}, newValue: { youtube_comments: 'off' } },
       }),
     ).toBe(true)
+  })
+
+  it('does not run a forever polling interval on supported pages', async () => {
+    const source = await readFile(contentScriptPath, 'utf8')
+    expect(source).not.toContain('setInterval')
   })
 })
 

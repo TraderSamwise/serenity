@@ -106,6 +106,7 @@ export class SerenityContentScript {
         continue
       }
       this.processed.add(row)
+      markPending(row)
       messages.push({ row, hash: await hashMessageText(text), text })
     }
     return messages
@@ -295,6 +296,11 @@ function applyVerdict(row: Element, hide: boolean): void {
     return
   }
   html.dataset.serenityHidden = 'shown'
+}
+
+function markPending(row: Element): void {
+  const html = row as HTMLElement
+  html.dataset.serenityHidden = 'pending'
 }
 
 if (typeof chrome !== 'undefined' && typeof document !== 'undefined') {
